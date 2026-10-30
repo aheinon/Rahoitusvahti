@@ -1,0 +1,75 @@
+# Rahoitusvahti - collector settings
+# Changes take effect on the next run.
+
+sources:
+  eu:
+    enabled: true
+    # Programmes (abbreviation) that are NOT collected
+    exclude_programmes: [EDF, ISF, JUST, EP, PERICLES IV, HUMA, NDICI, SOCPL, EUBA, IMCAP, IMREG, PPPA, "H2020 - 2014-2020", "COSME - 2014-2020"]
+  bf:
+    enabled: true
+  aka:
+    enabled: true
+  eura:
+    enabled: true
+    include_business_aid: false   # business development grants (YRTU) excluded by default
+  interreg:
+    enabled: true
+    finland_only: false           # true = only calls where Finland is eligible
+
+# Relevance profile: used for keyword scoring and as Claude's description of the organisation.
+profile:
+  organisation: >
+    Turku University of Applied Sciences (Turku UAS), New Energy Research Centre (NERC), Finland.
+    Applied RDI in solar PV, battery energy storage, agrivoltaics, energy communities, smart grids,
+    hydrogen and energy efficiency. Works closely with companies, municipalities and vocational
+    education (e.g. Erasmus+ Centres of Vocational Excellence). Based in Southwest Finland
+    (Varsinais-Suomi). Applies as a research organisation, usually as a consortium partner or coordinator.
+  keywords:   # word: weight (a hit in the title counts double). Finnish and English.
+    aurinko: 3
+    solar: 3
+    photovolta: 3
+    agrivolta: 4
+    agri-pv: 4
+    akku: 3
+    battery: 3
+    batteries: 3
+    energy storage: 3
+    energiavarasto: 3
+    energiayhteisö: 4
+    energy communit: 4
+    smart grid: 3
+    älyverkko: 3
+    grid: 1
+    vety: 2
+    hydrogen: 2
+    energiatehokkuus: 2
+    energy efficiency: 2
+    renewable: 1
+    uusiutuva: 1
+    energy: 1
+    energia: 1
+    vocational: 2
+    ammatillinen: 2
+    skills: 1
+    osaaminen: 1
+    tutkimusorganisaatio: 1
+    research organisation: 1
+    varsinais-suomi: 3
+  negative:   # lowers the score
+    defence: -3
+    puolustus: -3
+    medical: -2
+    cancer: -3
+    space: -1
+
+ai:
+  # AI scoring is enabled when the GitHub secret ANTHROPIC_API_KEY is set.
+  model: claude-haiku-5-5
+  # Only new or changed calls are scored. The cap keeps costs predictable.
+  max_calls_per_run: 700
+  # Minimum keyword score for EU topics to be scored and summarised. 0 = every topic gets a
+  # summary (about 365 topics on the first run); 1 skips topics with no keyword hits.
+  eu_min_keyword_score: 0
+
+retention_days_after_close: 60   # how long closed calls stay in the list

@@ -1,0 +1,70 @@
+rules_version = '2';
+
+// Rahoitusvahti - access rules
+// Access only for email addresses listed in allowlist/{email}.
+// Roles: admin (manages users), member (NERC team), partner (external partner).
+// The collector writes index/ and meta/ with a service account, which bypasses these rules.
+// The idea search worker reads allowlist/{email} with the user's own token.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function email() {
+      return request.auth.token.email.lower();
+    }
+    function signedIn() {
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+    function entry() {
+      return get(/databases/$(database)/documents/allowlist/$(email())).data;
+    }
+    function allowed() {
+      return signedIn() && exists(/databases/$(database)/documents/allowlist/$(email()));
+    }
+    function isAdmin()  { return allowed() && entry().role == 'admin'; }
+    function isMember() { return allowed() && entry().role in ['admin', 'member']; }
+
+    // Allowlist: everyone can read their own entry (sign-in check),
+    // allowlisted users can list it (@mentions), only admins change it.
+    match /allowlist/{addr} {
+      allow get: if signedIn() && addr == email();
+      allow list: if allowed();
+      allow write: if isAdmin();
+    }
+
+    // Collector data: read only
+    match /index/{doc} { allow read: if allowed(); allow write: if false; }
+    match /meta/{doc}  { allow read: if allowed(); allow write: if false; }
+
+    // Calls added by the team
+    match /manualCalls/{id} {
+      allow read: if allowed();
+      allow create, update: if isMember();
+      allow delete: if isAdmin() || (isMember() && resource.data.createdBy == email());
+    }
+
+    // Shared notes per call: project idea, stage, people, partners, tags
+    match /notes/{callId} {
+      allow read: if allowed();
+      allow write: if isMember();
+
+      // Comments: partners can comment too; authors can edit/delete their own
+      match /comments/{cid} {
+        allow read: if allowed();
+        allow create: if allowed() && request.resource.data.author == email();
+        allow update, delete: if allowed() && resource.data.author == email() || isAdmin();
+      }
+    }
+
+    // Partner list
+    match /partners/{id} {
+      allow read: if allowed();
+      allow write: if isMember();
+    }
+
+    // Personal settings and favourites
+    match /users/{addr} {
+      allow read, write: if allowed() && addr == email();
+    }
+  }
+}

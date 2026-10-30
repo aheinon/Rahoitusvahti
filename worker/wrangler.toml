@@ -1,0 +1,22 @@
+name = "rahoitusvahti-ideas"
+main = "src/index.js"
+compatibility_date = "2025-09-01"
+
+[vars]
+# Your Firebase project id (Project settings > General)
+FIREBASE_PROJECT_ID = "rahoitusvahti"
+# Comma-separated origins allowed to call the worker (your GitHub Pages address, no path)
+ALLOWED_ORIGINS = "https://aheinon.github.io"
+MODEL = "claude-haiku-5-5"
+DAILY_LIMIT = "40"
+# ORG_PROFILE = "Optional: replaces the default team description in the prompt"
+
+# Optional daily per-user limit. Create the namespace with:
+#   npx wrangler kv namespace create USAGE
+# and paste the id below.
+# [[kv_namespaces]]
+# binding = "USAGE"
+# id = "<namespace id>"
+
+# The API key is a secret, never put it here:
+#   npx wrangler secret put ANTHROPIC_API_KEY
