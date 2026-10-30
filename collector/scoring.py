@@ -4,6 +4,8 @@ from __future__ import annotations
 import json
 import os
 import re
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from common import Call, log
 from relevance_profile import ai_version
@@ -62,21 +64,39 @@ class AiScorer:
         self.used = 0
         self.tokens_in = 0
         self.tokens_out = 0
+        self.workers = int(cfg.get("parallel_requests", 8))
+        self._lock = threading.Lock()
         if self.enabled:
             import anthropic
-            self.client = anthropic.Anthropic()
+            # retries back off on rate limits (new API accounts have low limits); no request may hang
+            self.client = anthropic.Anthropic(max_retries=6, timeout=90)
         else:
             log("AI scoring off (ANTHROPIC_API_KEY not set) - using keyword scores")
 
-    def should_score(self, call: Call, kw: int) -> bool:
-        if not self.enabled or self.used >= self.budget:
+    def should_score(self, call: Call, kw: int, planned: int = 0) -> bool:
+        if not self.enabled or self.used + planned >= self.budget:
             return False
         if call.source == "eu" and kw < self.eu_min:
             return False
         return True
 
+    def score_many(self, calls: list) -> dict:
+        """Scores calls in parallel. Returns {call.id: result}."""
+        if not calls:
+            return {}
+        log(f"AI: assessing {len(calls)} calls, {self.workers} at a time")
+        out = {}
+        with ThreadPoolExecutor(max_workers=self.workers) as pool:
+            futures = {pool.submit(self.score, c): c for c in calls}
+            for i, fut in enumerate(as_completed(futures), 1):
+                out[futures[fut].id] = fut.result()
+                if i % 50 == 0 or i == len(calls):
+                    log(f"AI: {i}/{len(calls)} done")
+        return out
+
     def score(self, call: Call) -> dict:
-        self.used += 1
+        with self._lock:
+            self.used += 1
         prompt = AI_PROMPT.format(
             org=self.org, funder=call.funder, programme=call.programme, title=call.title,
             call_id=call.call_id or "-", action_type=call.action_type or "-", status=call.status,
@@ -88,8 +108,9 @@ class AiScorer:
                 model=self.model, max_tokens=600,
                 messages=[{"role": "user", "content": prompt}],
             )
-            self.tokens_in += msg.usage.input_tokens
-            self.tokens_out += msg.usage.output_tokens
+            with self._lock:
+                self.tokens_in += msg.usage.input_tokens
+                self.tokens_out += msg.usage.output_tokens
             data = _parse_json(msg.content[0].text)
             data["score"] = max(0, min(100, int(data.get("score", 0))))
             return data

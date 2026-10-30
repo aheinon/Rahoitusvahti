@@ -36,19 +36,26 @@ def merge(fresh: list, prev: dict, ok_sources: set, scorer: AiScorer, profile: d
     today = TODAY.isoformat()
     out: dict[str, dict] = {}
 
+    # 1) decide which calls Claude should (re)assess, then assess them in parallel
+    staged, to_score = [], []
     for call in fresh:
         kw = keyword_score(call, profile)
+        old = prev.get(call.id, {})
+        unchanged = old.get("hash") == call.content_hash()
+        # Score again when the call changed, when the profile changed, or when an older record has no summary
+        current = unchanged and "aiScore" in old and "aiSummary" in old and old.get("aiProfile") == scorer.version
+        staged.append((call, kw, old, unchanged))
+        if not current and scorer.should_score(call, kw, planned=len(to_score)):
+            to_score.append(call)
+    results = scorer.score_many(to_score)
+
+    # 2) build the records
+    for call, kw, old, unchanged in staged:
         rec = call.to_record()
-        old = prev.get(rec["id"], {})
         rec["firstSeen"] = old.get("firstSeen", today)
         rec["lastSeen"] = today
         rec["kwScore"] = kw
-
-        unchanged = old.get("hash") == rec["hash"]
-        # Score again when the call changed, when the profile changed, or when an older record has no summary
-        current = unchanged and "aiScore" in old and "aiSummary" in old and old.get("aiProfile") == scorer.version
-        needs_ai = not current
-        ai = scorer.score(call) if needs_ai and scorer.should_score(call, kw) else {}
+        ai = results.get(call.id) or {}
         if not ai and "aiScore" in old:
             # keep the previous assessment (unchanged call, AI off, or this run's budget used up)
             for k in ("aiScore", "aiReason", "aiTags", "aiEligible", "aiSummary", "aiProfile"):

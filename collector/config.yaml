@@ -70,6 +70,8 @@ ai:
   model: claude-haiku-5-5
   # Only new or changed calls are scored. The cap keeps costs predictable.
   max_calls_per_run: 700
+  # Requests to Claude at the same time. 8 keeps a first run of ~450 calls to a few minutes.
+  parallel_requests: 8
   # Minimum keyword score for EU topics to be scored and summarised. 0 = every topic gets a
   # summary (about 365 topics on the first run); 1 skips topics with no keyword hits.
   eu_min_keyword_score: 0
