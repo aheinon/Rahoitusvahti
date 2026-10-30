@@ -40,6 +40,10 @@ GitHub Actions (nightly)                 GitHub Pages (web/)
 - **Profile**: the team description Claude uses for scoring and idea search, plus weighted keywords.
   Everyone can see it; admins edit it in the app. A changed description makes Claude re-assess all calls
   on the next nightly run (about $0.25).
+- **Calls we can't apply to** are hidden by default and shown with one click: regional ERDF/ESF+/JTF
+  calls from other regions (national calls always show; the home region is set on the Profile tab),
+  Interreg calls where Finland is not eligible, calls Claude marked not eligible, and calls the team
+  marked *Not applying*. Idea search still considers all of them.
 - **Funder filter** grouped into *EU and international* (Horizon Europe, Erasmus+, LIFE, Digital Europe,
   other EU programmes, Interreg) and *Finland* (Business Finland, Research Council of Finland, EURA).
 - **Users** (admin): the allowlist and roles. External partners can be invited with the *Partner* role:

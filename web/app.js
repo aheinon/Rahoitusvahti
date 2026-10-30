@@ -70,7 +70,7 @@ function groupOf(c) {
   return "euother";
 }
 const srcOf = (c) => SOURCES[groupOf(c)];
-const DEFAULT_FILTERS = { q: "", sources: Object.keys(SOURCES), status: ["open", "forthcoming"], window: "all", minRel: 0, favOnly: false, mineOnly: false, tag: "", idea: "" };
+const DEFAULT_FILTERS = { showHidden: false, q: "", sources: Object.keys(SOURCES), status: ["open", "forthcoming"], window: "all", minRel: 0, favOnly: false, mineOnly: false, tag: "", idea: "" };
 
 /* ================= State ================= */
 
@@ -219,6 +219,40 @@ function refresh() {
 
 /* ================= Filtering ================= */
 
+/* ================= Calls we can't apply to ================= */
+
+// Regions of Finland grouped into the four structural fund areas (EURA "alue")
+const FUND_AREAS = {
+  "Etelä-Suomi": ["Uusimaa", "Kanta-Häme", "Päijät-Häme", "Kymenlaakso", "Etelä-Karjala"],
+  "Länsi-Suomi": ["Varsinais-Suomi", "Satakunta", "Pirkanmaa", "Keski-Suomi", "Pohjanmaa", "Etelä-Pohjanmaa"],
+  "Itä-Suomi": ["Etelä-Savo", "Pohjois-Savo", "Pohjois-Karjala"],
+  "Pohjois-Suomi": ["Keski-Pohjanmaa", "Pohjois-Pohjanmaa", "Kainuu", "Lappi"],
+};
+const REGIONS = Object.values(FUND_AREAS).flat().sort((a, b) => a.localeCompare(b, "fi"));
+const homeRegion = () => S.profile?.homeRegion || DEFAULT_PROFILE.homeRegion || "Varsinais-Suomi";
+
+const HIDDEN_LABEL = {
+  region: "Other region",
+  country: "Finland not eligible",
+  ineligible: "Not eligible (Claude)",
+  skip: "Not applying",
+};
+
+/** Why a call is hidden by default, or null when it is shown. */
+function hiddenReason(c) {
+  if (noteOf(c.id).stage === "skip") return "skip";
+  if (c.source === "eura" && c.region) {
+    const home = homeRegion();
+    const parts = c.region.split(",").map((s) => s.trim());
+    const national = parts.some((p) => /^(national|valtakunnallinen)$/i.test(p));
+    const area = parts.length === 1 && FUND_AREAS[parts[0]];            // whole fund area, no regions listed
+    if (!national && !parts.includes(home) && !(area && area.includes(home))) return "region";
+  }
+  if (c.source === "interreg" && c.region && !/finland/i.test(c.region) && !(c.auto_tags || []).includes("Finland eligible")) return "country";
+  if (/^(no|ei)\b/i.test(String(c.aiEligible || "").trim())) return "ineligible";
+  return null;
+}
+
 function filtered() {
   const f = S.filters;
   const q = f.q.trim().toLowerCase();
@@ -226,6 +260,7 @@ function filtered() {
   const me = S.store.user.email;
   return S.calls.filter((c) => {
     if (!f.sources.includes(groupOf(c))) return false;
+    if (!f.showHidden && hiddenReason(c)) return false;
     const st = isClosed(c) ? "closed" : c.status;
     if (!f.status.includes(st)) return false;
     if (f.favOnly && !fav(c.id)) return false;
@@ -257,11 +292,12 @@ function saveFilters() { LS.set("rv-filters", S.filters); }
 function renderListView(v) {
   const list = sorted(filtered());
   const f = S.filters;
-  const countBy = (s) => S.calls.filter((c) => groupOf(c) === s && !isClosed(c)).length;
+  const countBy = (s) => S.calls.filter((c) => groupOf(c) === s && !isClosed(c) && (f.showHidden || !hiddenReason(c))).length;
   const tags = allTags();
   const ideas = allIdeas();
   const focusId = document.activeElement?.id;
   const sel = focusId && ["idea-text", "idea-name", "q"].includes(focusId) ? [$("#" + focusId).selectionStart, $("#" + focusId).selectionEnd] : null;
+  const hiddenCount = S.calls.filter((c) => f.sources.includes(groupOf(c)) && !isClosed(c) && hiddenReason(c)).length;
   const soon = list.filter((c) => { const d = daysLeft(nextDeadline(c)); return d !== null && d >= 0 && d <= 30; }).length;
   v.innerHTML = `
   <section class="radar" aria-label="Deadlines on a timeline">
@@ -307,6 +343,7 @@ function renderListView(v) {
       <div class="bar">
         <button class="btn ghost mobile-filters" id="toggle-f">Filters</button>
         <span class="count">${list.length} calls</span>
+        ${hiddenCount ? `<button class="linkbtn hidden-toggle" id="showhidden" aria-pressed="${f.showHidden}" title="Other regions' ERDF calls, Interreg calls without Finland, calls Claude marked not eligible, and calls marked Not applying">${f.showHidden ? `Hide the ${hiddenCount} calls we can't apply to` : `Show ${hiddenCount} calls we can't apply to`}</button>` : ""}
         <span class="spacer"></span>
         <label class="sr" for="sort">Sort by</label>
         <select id="sort" class="sel">
@@ -349,6 +386,7 @@ function rowHtml(c) {
         <span class="fund">${esc(src.short)}${c.programme && c.programme !== c.funder && c.programme !== src.label ? " · " + esc(c.programme) : ""}${region}</span>
         ${opens}
         ${isNew(c) ? `<span class="tag new">New</span>` : ""}
+        ${hiddenReason(c) ? `<span class="tag hiddenr">${HIDDEN_LABEL[hiddenReason(c)]}</span>` : ""}
         ${n.idea ? `<span class="tag idea" title="Project idea">${esc(n.idea)}</span>` : ""}
         ${n.stage ? `<span class="tag stage">${esc(STAGE_LABEL[n.stage])}</span>` : ""}
         ${(n.tags || []).slice(0, 3).map((t) => `<span class="tag">${esc(t)}</span>`).join("")}
@@ -440,6 +478,7 @@ function bindList(v) {
   $("#minrel").onchange = (e) => { f.minRel = Number(e.target.value); upd(); };
   $("#favonly").onchange = (e) => { f.favOnly = e.target.checked; upd(); };
   $("#mineonly").onchange = (e) => { f.mineOnly = e.target.checked; upd(); };
+  $("#showhidden") && ($("#showhidden").onclick = () => { f.showHidden = !f.showHidden; upd(); });
   $("#tagf") && ($("#tagf").onchange = (e) => { f.tag = e.target.value; upd(); });
   $("#ideaf") && ($("#ideaf").onchange = (e) => { f.idea = e.target.value; upd(); });
   $("#reset-f").onclick = () => { S.filters = { ...DEFAULT_FILTERS, sources: [...DEFAULT_FILTERS.sources], status: [...DEFAULT_FILTERS.status] }; upd(); };
@@ -492,7 +531,7 @@ function ideaPanelHtml() {
           <div class="fit" title="Fit with the idea, 0-100"><b>${m.fit}</b><span>fit</span></div>
           <div class="mbody">
             <button class="mtitle" data-open="${esc(c.id)}">${esc(c.title)}</button>
-            <div class="m"><span>${esc(srcOf(c).short)}${c.programme && c.programme !== c.funder ? " · " + esc(c.programme) : ""}</span><span>${dl ? `deadline ${fmtDate(dl)} (${daysText(daysLeft(dl))})` : c.continuous ? "rolling call" : "deadline not known"}</span></div>
+            <div class="m"><span>${esc(srcOf(c).short)}${c.programme && c.programme !== c.funder ? " · " + esc(c.programme) : ""}</span><span>${dl ? `deadline ${fmtDate(dl)} (${daysText(daysLeft(dl))})` : c.continuous ? "rolling call" : "deadline not known"}</span>${hiddenReason(c) ? `<span class="tag hiddenr">${HIDDEN_LABEL[hiddenReason(c)]}</span>` : ""}</div>
             ${m.why ? `<p>${esc(m.why)}</p>` : ""}
             ${m.angle ? `<p class="angle"><b>Angle:</b> ${esc(m.angle)}</p>` : ""}
           </div>
@@ -610,7 +649,7 @@ function renderDrawerBody() {
   ].filter(([, v]) => v);
   dr.innerHTML = `
   <header>
-    <div class="srcline"><i style="background:${src.color}"></i>${esc(src.label)}${isNew(c) ? ` <span class="tag new">New</span>` : ""}</div>
+    <div class="srcline"><i style="background:${src.color}"></i>${esc(src.label)}${isNew(c) ? ` <span class="tag new">New</span>` : ""}${hiddenReason(c) ? ` <span class="tag hiddenr">${HIDDEN_LABEL[hiddenReason(c)]}</span>` : ""}</div>
     <h2 id="dr-title">${esc(c.title)}</h2>
     <button class="close" aria-label="Close">×</button>
     <div class="actions">
@@ -891,6 +930,11 @@ function renderProfile(v) {
       <p class="pf-org">${esc(p.organisation)}</p>
     </section>
     <section class="pf-block">
+      <h2>Home region</h2>
+      <p class="pf-org">${esc(p.homeRegion || DEFAULT_PROFILE.homeRegion)}</p>
+      <p class="hint">Regional ERDF, ESF+ and JTF calls from other regions are hidden by default. National calls are always shown.</p>
+    </section>
+    <section class="pf-block">
       <h2>Keywords <span>${(p.keywords || []).length}</span></h2>
       <p class="hint">A call earns the weight when the word appears in its text, and twice the weight when it is in the title.</p>
       ${chips(p.keywords)}
@@ -905,7 +949,7 @@ function renderProfile(v) {
   </div>`;
   $("#pf-edit") && ($("#pf-edit").onclick = () => {
     const base = S.profile || DEFAULT_PROFILE;
-    S.profileDraft = { organisation: base.organisation || "", keywords: structuredClone(base.keywords || []), negative: structuredClone(base.negative || []) };
+    S.profileDraft = { homeRegion: base.homeRegion || DEFAULT_PROFILE.homeRegion, organisation: base.organisation || "", keywords: structuredClone(base.keywords || []), negative: structuredClone(base.negative || []) };
     refresh();
   });
 }
@@ -924,6 +968,9 @@ function renderProfileEditor(v) {
       <div class="field"><label for="pf-org">Team description for Claude</label>
         <textarea id="pf-org" rows="7" maxlength="3000">${esc(d.organisation)}</textarea>
         <p class="hint">Write it the way you would brief a colleague: who you are, your research themes, how you usually take part in projects (partner, coordinator) and where you are based. Plain sentences work best.</p></div>
+      <div class="field"><label for="pf-home">Home region</label>
+        <select id="pf-home" class="sel">${REGIONS.map((r) => `<option ${r === (d.homeRegion || DEFAULT_PROFILE.homeRegion) ? "selected" : ""}>${r}</option>`).join("")}</select>
+        <p class="hint">Regional ERDF, ESF+ and JTF calls from other regions are hidden by default. National calls are always shown.</p></div>
       <div class="pf-cols">
         <div class="field"><span class="lbl">Keywords and weights</span>${rows("keywords")}<button type="button" class="btn ghost small" data-addrow="keywords">Add keyword</button></div>
         <div class="field"><span class="lbl">Negative keywords and weights</span>${rows("negative")}<button type="button" class="btn ghost small" data-addrow="negative">Add negative keyword</button></div>
@@ -959,6 +1006,7 @@ function renderProfileEditor(v) {
     d[kind].splice(Number(i), 1);
     refresh();
   }));
+  $("#pf-home").onchange = (e) => { d.homeRegion = e.target.value; };
   $("#pf-cancel").onclick = () => { S.profileDraft = null; refresh(); };
   $("#pf-form").onsubmit = async (e) => {
     e.preventDefault();
@@ -971,7 +1019,7 @@ function renderProfileEditor(v) {
     };
     const btn = $("#pf-form button[type=submit]"); btn.disabled = true;
     try {
-      await S.store.saveProfile({ organisation: org, keywords: clean(d.keywords), negative: clean(d.negative) });
+      await S.store.saveProfile({ organisation: org, homeRegion: d.homeRegion || DEFAULT_PROFILE.homeRegion, keywords: clean(d.keywords), negative: clean(d.negative) });
       S.profileDraft = null; refresh(); toast("Profile saved");
     } catch (err) {
       btn.disabled = false;
