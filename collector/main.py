@@ -18,6 +18,7 @@ import yaml
 sys.path.insert(0, os.path.dirname(__file__))
 
 from common import TODAY, log  # noqa: E402
+import relevance_profile as prof  # noqa: E402
 from scoring import AiScorer, keyword_score  # noqa: E402
 from sources import akatemia, business_finland, eu_ft, eura, interreg  # noqa: E402
 from store import Store  # noqa: E402
@@ -44,12 +45,13 @@ def merge(fresh: list, prev: dict, ok_sources: set, scorer: AiScorer, profile: d
         rec["kwScore"] = kw
 
         unchanged = old.get("hash") == rec["hash"]
-        # Score again when the call changed, or when an older record has no summary yet
-        needs_ai = not (unchanged and "aiScore" in old and "aiSummary" in old)
+        # Score again when the call changed, when the profile changed, or when an older record has no summary
+        current = unchanged and "aiScore" in old and "aiSummary" in old and old.get("aiProfile") == scorer.version
+        needs_ai = not current
         ai = scorer.score(call) if needs_ai and scorer.should_score(call, kw) else {}
         if not ai and "aiScore" in old:
             # keep the previous assessment (unchanged call, AI off, or this run's budget used up)
-            for k in ("aiScore", "aiReason", "aiTags", "aiEligible", "aiSummary"):
+            for k in ("aiScore", "aiReason", "aiTags", "aiEligible", "aiSummary", "aiProfile"):
                 if k in old:
                     rec[k] = old[k]
             if unchanged:
@@ -61,6 +63,7 @@ def merge(fresh: list, prev: dict, ok_sources: set, scorer: AiScorer, profile: d
             rec["aiReason"] = ai.get("reason", "")
             rec["aiTags"] = ai.get("tags", [])[:5]
             rec["aiEligible"] = ai.get("eligible", "")
+            rec["aiProfile"] = scorer.version
             summary = ai.get("summary")
             rec["aiSummary"] = str(summary).strip()[:700] if summary and str(summary).lower() != "null" else None
             if not rec.get("deadline") and ai.get("deadline") and ai["deadline"] >= today:
@@ -117,8 +120,18 @@ def main() -> int:
             log(f"ERROR in source {name}: {e}")
             traceback.print_exc()
 
-    scorer = AiScorer(cfg.get("ai", {}), cfg["profile"])
-    items = merge(fresh, prev, ok, scorer, cfg["profile"], cfg.get("retention_days_after_close", 60))
+    # Relevance profile: Firestore settings/profile (edited in the app); config.yaml seeds it on the first run
+    doc = store.load_profile()
+    if not doc:
+        doc = prof.to_doc(cfg["profile"])
+        store.seed_profile(doc)
+        log("Profile: seeded settings/profile from config.yaml")
+    profile = prof.from_doc(doc)
+    log(f"Profile: {len(profile['keywords'])} keywords, {len(profile['negative'])} negative, "
+        f"last edited by {doc.get('updatedBy', 'config.yaml')}")
+
+    scorer = AiScorer(cfg.get("ai", {}), profile)
+    items = merge(fresh, prev, ok, scorer, profile, cfg.get("retention_days_after_close", 60))
     meta = {"counts": counts, "errors": errors, "total": len(items),
             "ai": {"scored": scorer.used, "inputTokens": scorer.tokens_in, "outputTokens": scorer.tokens_out}}
     store.save(items, meta)

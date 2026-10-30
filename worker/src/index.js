@@ -4,10 +4,11 @@
 // 1. checks the caller's Firebase ID token by reading allowlist/{email} from Firestore WITH that token
 //    (Firestore verifies the token and the security rules only allow allowlisted users),
 // 2. applies an optional daily per-user limit (KV binding USAGE),
-// 3. builds the prompt from the idea + the call list and asks Claude,
+// 3. reads the team description from settings/profile (also with the user's token),
+//    builds the prompt from the idea + the call list and asks Claude,
 // 4. returns {matches, note} with only ids that were in the list.
 
-import { buildIdeaPrompt, cleanMatches, DEFAULT_ORG, IDEA_LIMITS } from "../../web/idea-prompt.js";
+import { buildIdeaPrompt, cleanMatches, DEFAULT_PROFILE, IDEA_LIMITS } from "../../web/idea-prompt.js";
 
 export default {
   async fetch(request, env) {
@@ -31,10 +32,8 @@ export default {
     const token = (request.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
     const email = emailFromToken(token);
     if (!email) return reply({ error: "Sign in again and retry." }, 401);
-    const fs = await fetch(
-      `https://firestore.googleapis.com/v1/projects/${env.FIREBASE_PROJECT_ID}/databases/(default)/documents/allowlist/${encodeURIComponent(email)}`,
-      { headers: { Authorization: `Bearer ${token}` } },
-    );
+    const docs = `https://firestore.googleapis.com/v1/projects/${env.FIREBASE_PROJECT_ID}/databases/(default)/documents`;
+    const fs = await fetch(`${docs}/allowlist/${encodeURIComponent(email)}`, { headers: { Authorization: `Bearer ${token}` } });
     if (fs.status === 401) return reply({ error: "Your sign-in has expired. Reload the page." }, 401);
     if (!fs.ok) return reply({ error: "Your address is not on the user list." }, 403);
 
@@ -58,7 +57,14 @@ export default {
     if (!lines.length) return reply({ error: "No calls to compare against." }, 400);
     const knownIds = new Set(lines.map((l) => l.split(" | ")[0]));
 
-    const prompt = buildIdeaPrompt({ idea, ideaName, lines, org: env.ORG_PROFILE || DEFAULT_ORG, today: new Date().toISOString().slice(0, 10) });
+    let org = "";
+    try {
+      const pr = await fetch(`${docs}/settings/profile`, { headers: { Authorization: `Bearer ${token}` } });
+      if (pr.ok) org = (await pr.json()).fields?.organisation?.stringValue || "";
+    } catch { /* fall back below */ }
+    org = org || env.ORG_PROFILE || DEFAULT_PROFILE.organisation;
+
+    const prompt = buildIdeaPrompt({ idea, ideaName, lines, org, today: new Date().toISOString().slice(0, 10) });
     const ar = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: { "x-api-key": env.ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json" },

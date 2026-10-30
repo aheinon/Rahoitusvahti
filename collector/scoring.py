@@ -6,6 +6,7 @@ import os
 import re
 
 from common import Call, log
+from relevance_profile import ai_version
 
 AI_PROMPT = """You assess how relevant a funding call is for the organisation described below.
 
@@ -57,6 +58,7 @@ class AiScorer:
         self.budget = int(cfg.get("max_calls_per_run", 700))
         self.eu_min = int(cfg.get("eu_min_keyword_score", 0))
         self.org = profile.get("organisation", "")
+        self.version = ai_version(profile)
         self.used = 0
         self.tokens_in = 0
         self.tokens_out = 0

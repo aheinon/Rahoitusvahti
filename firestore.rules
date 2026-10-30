@@ -32,6 +32,12 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // Relevance profile (settings/profile): everyone can read, only admins can change it
+    match /settings/{doc} {
+      allow read: if allowed();
+      allow write: if isAdmin();
+    }
+
     // Collector data: read only
     match /index/{doc} { allow read: if allowed(); allow write: if false; }
     match /meta/{doc}  { allow read: if allowed(); allow write: if false; }

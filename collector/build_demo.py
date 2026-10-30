@@ -33,6 +33,7 @@ EU = [  # id, title, programme, opens, deadlines, status, action (a sample of th
     ("HORIZON-BRIDGING-2027-05-01", "Skills for innovative SMEs", "Horizon Europe", "2026-12-01", ["2027-03-03"], "forthcoming", "HORIZON Coordination and Support Actions"),
     ("HORIZON-CL6-2026-04-GOVERNANCE-01", "Additional activities for the European Partnership of Agriculture of Data", "Horizon Europe", "2026-08-25", ["2026-11-26"], "open", "HORIZON Programme Cofund Actions"),
     ("HORIZON-CL5-2027-05-D4-06", "Thermal energy optimisation and waste heat recovery of high energy demand IT rooms in buildings or small edge data centres", "Horizon Europe", "2027-05-05", ["2027-09-15"], "forthcoming", "HORIZON Innovation Actions"),
+    ("DIGITAL-2023-SKILLS-04-SEMICONDUCTORS", "Reinforcing skills in semiconductors", "Digital Europe", "2026-10-31", ["2027-06-30"], "forthcoming", "DIGITAL Simple Grants"),
     ("HORIZON-CL5-2027-03-D5-18", "Enhanced electric operation and battery durability (ZEWT Partnership)", "Horizon Europe", "2026-12-15", ["2027-04-14"], "forthcoming", "HORIZON Innovation Actions"),
     ("HORIZON-CL5-2027-03-D5-14", "Onboard renewable energy solutions and energy saving measures to reduce the fuel consumption of ships by at least 55% (ZEWT Partnership)", "Horizon Europe", "2026-12-15", ["2027-04-14"], "forthcoming", "HORIZON Innovation Actions"),
     ("HORIZON-CL6-2027-01-ZEROPOLLUTION-03", "Improve the capacity to monitor and reduce air pollution from agriculture", "Horizon Europe", "2027-04-20", ["2027-09-22"], "forthcoming", "HORIZON  Research and Innovation Actions"),
@@ -107,7 +108,7 @@ def build():
         cfg = yaml.safe_load(f)
     calls = []
     for i, t, prog, o, dls, st, act in EU:
-        calls.append(Call(id=f"eu:{i}", source="eu", title=t, url=EUB + i, funder="European Commission",
+        calls.append(Call(id=f"eu:{i}", source="eu", title=t, url=("https://ec.europa.eu/info/funding-tenders/opportunities/portal/screen/opportunities/competitive-calls-cs/46014314" if i.startswith("DIGITAL") else EUB + i), funder="European Commission",
                           programme=prog, status=st, opens=o, deadlines=dls, call_id=i.rsplit("-", 1)[0], action_type=act))
     for p, t, s, st, o, dl, cont in BF:
         calls.append(Call(id="bf:" + p.rstrip("/").split("/")[-1], source="bf", title=t, url=BFB + p,

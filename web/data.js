@@ -1,6 +1,6 @@
 // Data layer: the same interface for Firebase mode and demo mode.
 // Team annotations are kept apart from the collector's data (index/*).
-import { buildIdeaPrompt, cleanMatches, DEFAULT_ORG } from "./idea-prompt.js";
+import { buildIdeaPrompt, cleanMatches, DEFAULT_PROFILE } from "./idea-prompt.js";
 
 const FB = "https://www.gstatic.com/firebasejs/10.12.2/";
 
@@ -121,6 +121,18 @@ export async function createFirebaseStore(config) {
     },
     async saveMe(patch) { await F.setDoc(F.doc(db, "users", store.user.email), patch, { merge: true }); },
 
+    // ---- relevance profile (settings/profile) ----
+    watchProfile(cb) {
+      return F.onSnapshot(F.doc(db, "settings", "profile"), (snap) => {
+        if (!snap.exists()) return cb(null);
+        const d = snap.data();
+        cb({ ...d, updatedAt: d.updatedAt?.toDate?.().toISOString() || d.updatedAt || null });
+      });
+    },
+    async saveProfile(p) {
+      await F.setDoc(F.doc(db, "settings", "profile"), { ...p, updatedBy: store.user.name || store.user.email, updatedAt: F.serverTimestamp() });
+    },
+
     // ---- idea search (Cloudflare Worker holds the Claude API key) ----
     ideaSearchAvailable() { return !!window.RV_CONFIG?.ideaSearchUrl; },
     async suggestCalls({ idea, ideaName, lines, signal }) {
@@ -186,10 +198,12 @@ export async function createDemoStore() {
     ],
     me: { favorites: ["eu:HORIZON-CL5-2027-02-D3-15", "aka:2027-akatemiahankkeet-kaikki-tutkimusalat", "eu:HORIZON-MISS-2027-04-CIT-01"] },
     manual: [],
+    profile: { ...structuredClone(DEFAULT_PROFILE), updatedBy: "config.yaml", updatedAt: "2026-10-29T03:17:00Z" },
   };
   let st;
   try { st = JSON.parse(localStorage.getItem(KEY)) || seed; } catch { st = seed; }
-  const listeners = { notes: new Set(), partners: new Set(), allow: new Set(), comments: new Map() };
+  st.profile ||= structuredClone(seed.profile);
+  const listeners = { notes: new Set(), partners: new Set(), allow: new Set(), comments: new Map(), profile: new Set() };
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(st)); } catch { /* storage is optional */ } };
   const emit = (k) => {
     save();
@@ -232,6 +246,11 @@ export async function createDemoStore() {
       emit("partners"); return p.id;
     },
     async deletePartner(id) { st.partners = st.partners.filter((p) => p.id !== id); emit("partners"); },
+    watchProfile(cb) { return watch(listeners.profile, cb, st.profile); },
+    async saveProfile(p) {
+      st.profile = { ...p, updatedBy: store.user.name, updatedAt: new Date().toISOString() };
+      save(); listeners.profile.forEach((cb) => cb(structuredClone(st.profile)));
+    },
     async loadMe() { return structuredClone(st.me); },
     async saveMe(patch) { st.me = { ...st.me, ...patch }; save(); },
     watchAllow(cb) { return watch(listeners.allow, cb, st.allow); },
@@ -249,7 +268,7 @@ export async function createDemoStore() {
       const knownIds = new Set(lines.map((l) => l.split(" | ")[0]));
       const sample = window.claude?.use ? await window.claude.use("sample").catch(() => null) : null;
       if (sample) {
-        const prompt = buildIdeaPrompt({ idea, ideaName, lines, org: DEFAULT_ORG, today: new Date().toISOString().slice(0, 10) });
+        const prompt = buildIdeaPrompt({ idea, ideaName, lines, org: st.profile?.organisation || DEFAULT_PROFILE.organisation, today: new Date().toISOString().slice(0, 10) });
         try {
           const result = await sample.json(prompt, { signal, modelTier: "default" });
           return cleanMatches(result, knownIds);

@@ -251,3 +251,27 @@ def test_budget_used_up_keeps_previous_assessment(monkeypatch):
     prev = {"eu:A": {"id": "eu:A", "hash": "different", "aiScore": 55, "aiReason": "kept", "aiSummary": "S"}}
     out = main.merge([c], prev, {"eu"}, _fake_scorer(monkeypatch, 0, "{}"), PROFILE, 60)[0]
     assert out["aiScore"] == 55 and out["aiReason"] == "kept" and out["relevance"] == 55
+
+
+def test_profile_round_trip_and_rescore_on_change(monkeypatch):
+    import relevance_profile as prof
+    from common import Call
+    doc = prof.to_doc({"organisation": "NERC  team\\n solar", "keywords": {"Solar": 3}, "negative": {"defence": -3}})
+    assert doc["keywords"] == [{"word": "Solar", "weight": 3.0}] and doc["organisation"] == "NERC team\\n solar"
+    p = prof.from_doc({**doc, "negative": [{"word": "defence", "weight": 3}, {"word": "", "weight": 1}, {"word": "x", "weight": "bad"}]})
+    assert p["keywords"] == {"solar": 3.0} and p["negative"] == {"defence": -3.0}
+
+    reply = '{"summary": "S", "score": 60, "reason": "r", "tags": [], "eligible": "yes"}'
+    c = Call(id="eu:A", source="eu", title="Solar", url="u", funder="EC", deadlines=["2099-01-01"])
+    scorer = _fake_scorer(monkeypatch, 5, reply)
+    first = main.merge([c], {}, {"eu"}, scorer, p, 60)[0]
+    assert first["aiProfile"] == scorer.version
+    # same profile -> not scored again
+    s2 = _fake_scorer(monkeypatch, 5, reply)
+    main.merge([c], {"eu:A": first}, {"eu"}, s2, p, 60)
+    assert s2.used == 0
+    # organisation text changed -> scored again
+    s3 = _fake_scorer(monkeypatch, 5, reply)
+    s3.version = prof.ai_version({"organisation": "different"})
+    out = main.merge([c], {"eu:A": first}, {"eu"}, s3, p, 60)[0]
+    assert s3.used == 1 and out["aiProfile"] == s3.version

@@ -9,7 +9,8 @@ FIREBASE_PROJECT_ID = "rahoitusvahti"
 ALLOWED_ORIGINS = "https://aheinon.github.io"
 MODEL = "claude-haiku-5-5"
 DAILY_LIMIT = "40"
-# ORG_PROFILE = "Optional: replaces the default team description in the prompt"
+# The team description comes from the Profile tab (settings/profile in Firestore).
+# ORG_PROFILE = "Optional fallback if settings/profile does not exist yet"
 
 # Optional daily per-user limit. Create the namespace with:
 #   npx wrangler kv namespace create USAGE

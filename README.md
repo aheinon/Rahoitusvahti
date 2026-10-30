@@ -37,6 +37,11 @@ GitHub Actions (nightly)                 GitHub Pages (web/)
 - **Favourites** are personal. Their deadlines can be downloaded to a calendar (.ics, reminder a week before).
 - **Pipeline**: calls by stage, with the project idea shown on each card.
 - **Partners**: a shared list and which calls each partner is linked to.
+- **Profile**: the team description Claude uses for scoring and idea search, plus weighted keywords.
+  Everyone can see it; admins edit it in the app. A changed description makes Claude re-assess all calls
+  on the next nightly run (about $0.25).
+- **Funder filter** grouped into *EU and international* (Horizon Europe, Erasmus+, LIFE, Digital Europe,
+  other EU programmes, Interreg) and *Finland* (Business Finland, Research Council of Finland, EURA).
 - **Users** (admin): the allowlist and roles. External partners can be invited with the *Partner* role:
   they see the calls and can comment, but cannot change team notes.
 - **Add a call**: for foundations, ministries and other funders the collector does not follow.
@@ -111,8 +116,9 @@ python main.py --dry-run calls.json --only eu,aka
 ## Settings
 
 `collector/config.yaml`: sources on/off, excluded EU programmes, EURA business grants, Interreg
-Finland-only, the **relevance profile** (organisation description for Claude and weighted keywords
-in Finnish and English) and the AI model and per-run cap.
+Finland-only, and the AI model and per-run cap. Its `profile` section is only the starting point: the
+first run copies it to Firestore (`settings/profile`), and from then on admins edit the profile in the
+app's *Profile* tab.
 
 ## Costs
 

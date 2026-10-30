@@ -5,6 +5,8 @@ Data model:
     All calls packed into a few documents, so the app reads the whole list with 1-3 reads
     (well within Firestore's free quota).
 - meta/collector  {lastRun, counts, errors, ai}
+- settings/profile  {organisation, keywords: [{word, weight}], negative: [{word, weight}], updatedAt, updatedBy}
+    The relevance profile, edited by admins in the app. Seeded from config.yaml on the first run.
 Team annotations (favourites, tags, comments, partners) live in their own collections,
 which the collector never touches.
 """
@@ -42,6 +44,19 @@ class Store:
                 for c in doc.to_dict().get("items", []):
                     out[c["id"]] = c
         return out
+
+    def load_profile(self) -> dict | None:
+        """The profile document from Firestore, or None (dry run, or not created yet)."""
+        if self.dry:
+            return None
+        snap = self.db.collection("settings").document("profile").get()
+        return snap.to_dict() if snap.exists else None
+
+    def seed_profile(self, doc: dict) -> None:
+        if self.dry:
+            return
+        now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        self.db.collection("settings").document("profile").set({**doc, "updatedAt": now, "updatedBy": "config.yaml"})
 
     def save(self, items: list[dict], meta: dict) -> None:
         now = datetime.now(timezone.utc).isoformat(timespec="seconds")

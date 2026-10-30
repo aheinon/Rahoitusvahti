@@ -3,8 +3,13 @@ import { callLine } from "./idea-prompt.js";
 
 /* ================= Constants and helpers ================= */
 
+// Funder groups shown in filters, legend and colours. EU topics are split by programme.
 const SOURCES = {
-  eu: { label: "EU Funding & Tenders", short: "EU", color: "var(--src-eu)" },
+  horizon: { label: "Horizon Europe", short: "Horizon", color: "var(--src-eu)" },
+  erasmus: { label: "Erasmus+", short: "Erasmus+", color: "var(--src-erasmus)" },
+  life: { label: "LIFE", short: "LIFE", color: "var(--src-life)" },
+  digital: { label: "Digital Europe", short: "Digital", color: "var(--src-digital)" },
+  euother: { label: "Other EU programmes", short: "EU", color: "var(--src-euother)" },
   bf: { label: "Business Finland", short: "BF", color: "var(--src-bf)" },
   aka: { label: "Research Council of Finland", short: "RCF", color: "var(--src-aka)" },
   eura: { label: "ERDF / ESF+ / JTF (EURA)", short: "EURA", color: "var(--src-eura)" },
@@ -47,16 +52,41 @@ function toast(msg) {
 }
 const STAR = `<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2.8l2.8 5.9 6.4.8-4.7 4.4 1.2 6.4L12 17.2l-5.7 3.1 1.2-6.4L2.8 9.5l6.4-.8z"/></svg>`;
 const STAR_O = `<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" d="M12 2.8l2.8 5.9 6.4.8-4.7 4.4 1.2 6.4L12 17.2l-5.7 3.1 1.2-6.4L2.8 9.5l6.4-.8z"/></svg>`;
+const EU_GROUPS = ["horizon", "erasmus", "life", "digital", "euother"];
+// How the funder filter is grouped
+const FUNDER_GROUPS = [
+  { key: "intl", label: "EU and international", keys: [...EU_GROUPS, "interreg"] },
+  { key: "fi", label: "Finland", keys: ["bf", "aka", "eura"] },
+  { key: "own", label: "Added by the team", keys: ["manual"] },
+];
+const SOURCE_SHORT = { eu: "EU", bf: "BF", aka: "RCF", eura: "EURA", interreg: "Interreg" }; // collector run counts
+function groupOf(c) {
+  if (c.source !== "eu") return SOURCES[c.source] ? c.source : "manual";
+  const p = (c.programme || "") + " " + (c.call_id || c.id || "");
+  if (/horizon|euratom/i.test(p)) return "horizon";
+  if (/erasmus/i.test(p)) return "erasmus";
+  if (/\bLIFE\b/.test(p)) return "life";
+  if (/digital/i.test(p)) return "digital";
+  return "euother";
+}
+const srcOf = (c) => SOURCES[groupOf(c)];
 const DEFAULT_FILTERS = { q: "", sources: Object.keys(SOURCES), status: ["open", "forthcoming"], window: "all", minRel: 0, favOnly: false, mineOnly: false, tag: "", idea: "" };
 
 /* ================= State ================= */
 
+// Saved filters from before EU was split by programme had a single "eu" entry.
+function migrateFilters(f) {
+  if (f.sources.includes("eu")) f.sources = [...f.sources.filter((s) => s !== "eu"), ...EU_GROUPS];
+  f.sources = [...new Set(f.sources.filter((s) => SOURCES[s]))];
+  return f;
+}
+
 const S = {
   store: null,
   calls: [], byId: new Map(), meta: {},
-  notes: {}, partners: [], allow: [], me: { favorites: [] },
+  notes: {}, partners: [], allow: [], me: { favorites: [] }, profile: undefined, profileDraft: null,
   view: LS.get("rv-view", "list"),
-  filters: Object.assign({}, DEFAULT_FILTERS, LS.get("rv-filters", {})),
+  filters: migrateFilters(Object.assign({}, DEFAULT_FILTERS, LS.get("rv-filters", {}))),
   sort: LS.get("rv-sort", "deadline"),
   horizon: LS.get("rv-horizon", 183),          // timeline length in days
   showSummaries: LS.get("rv-summaries", false),
@@ -108,13 +138,14 @@ async function loadAll() {
   S.store.watchNotes((n) => { S.notes = n; refresh(); });
   S.store.watchPartners((p) => { S.partners = p; refresh(); });
   S.store.watchAllow((a) => { S.allow = a; refresh(); });
+  S.store.watchProfile((p) => { S.profile = p; if (S.view === "profile" && !S.profileDraft) refresh(); });
   renderShell();
 }
 
 /* ================= Sign-in ================= */
 
 function loginMark() {
-  return `<div class="mark">${["eu", "bf", "aka", "eura", "interreg"].map((s) => `<i style="background:${SOURCES[s].color}"></i>`).join("")}</div>`;
+  return `<div class="mark">${["horizon", "bf", "aka", "eura", "interreg"].map((s) => `<i style="background:${SOURCES[s].color}"></i>`).join("")}</div>`;
 }
 function renderLogin(msg = "") {
   $("#app").innerHTML = `
@@ -157,7 +188,7 @@ function renderDenied(email) {
 
 function renderShell() {
   const u = S.store.user;
-  const tabs = [["list", "Calls"], ["board", "Pipeline"], ["partners", "Partners"]].concat(isAdmin() ? [["users", "Users"]] : []);
+  const tabs = [["list", "Calls"], ["board", "Pipeline"], ["partners", "Partners"], ["profile", "Profile"]].concat(isAdmin() ? [["users", "Users"]] : []);
   if (S.view === "users" && !isAdmin()) S.view = "list";
   $("#app").innerHTML = `
   ${S.store.mode === "demo" ? `<div class="demo-band"><span>Demo: a sample of ${S.calls.length} real calls collected on 29 Oct 2026 (the full service tracks about 450). Your changes are saved in this browser only. AI summaries and reasons on the calls are examples.</span><button id="demo-reset">Reset demo</button></div>` : ""}
@@ -182,6 +213,7 @@ function refresh() {
   else if (S.view === "board") renderBoard(v);
   else if (S.view === "partners") renderPartners(v);
   else if (S.view === "users") renderUsers(v);
+  else if (S.view === "profile") renderProfile(v);
   if (S.openId) renderDrawerBody();
 }
 
@@ -193,7 +225,7 @@ function filtered() {
   const maxDate = f.window === "all" ? null : isoDate(new Date(today.getTime() + Number(f.window) * DAY));
   const me = S.store.user.email;
   return S.calls.filter((c) => {
-    if (!f.sources.includes(c.source)) return false;
+    if (!f.sources.includes(groupOf(c))) return false;
     const st = isClosed(c) ? "closed" : c.status;
     if (!f.status.includes(st)) return false;
     if (f.favOnly && !fav(c.id)) return false;
@@ -225,7 +257,7 @@ function saveFilters() { LS.set("rv-filters", S.filters); }
 function renderListView(v) {
   const list = sorted(filtered());
   const f = S.filters;
-  const countBy = (s) => S.calls.filter((c) => c.source === s && !isClosed(c)).length;
+  const countBy = (s) => S.calls.filter((c) => groupOf(c) === s && !isClosed(c)).length;
   const tags = allTags();
   const ideas = allIdeas();
   const focusId = document.activeElement?.id;
@@ -237,7 +269,7 @@ function renderListView(v) {
       <h1>${soon} ${soon === 1 ? "call closes" : "calls close"} within 30 days</h1>
       <p>${list.length} calls shown</p>
       <div class="seg horizon" role="group" aria-label="Timeline length">${[[183, "6 months"], [365, "12 months"], [548, "18 months"]].map(([d, l]) => `<button data-hz="${d}" aria-pressed="${S.horizon === d}">${l}</button>`).join("")}</div>
-      <div class="legend">${Object.entries(SOURCES).filter(([k]) => k !== "manual" || countBy("manual")).map(([k, s]) => `<span><i style="background:${s.color}"></i>${s.short}</span>`).join("")}<span><i style="background:transparent;box-shadow:0 0 0 2px var(--sun)"></i>Favourite</span></div>
+      <div class="legend">${Object.entries(SOURCES).filter(([k]) => countBy(k)).map(([k, s]) => `<span><i style="background:${s.color}"></i>${s.short}</span>`).join("")}<span><i style="background:transparent;box-shadow:0 0 0 2px var(--sun)"></i>Favourite</span></div>
     </div>
     <div class="track" id="track"></div>
   </section>
@@ -246,7 +278,17 @@ function renderListView(v) {
       <h2><label for="q">Search</label></h2>
       <input id="q" class="search" type="search" placeholder="e.g. solar, battery, CL5" value="${esc(f.q)}">
       <h2>Funder</h2>
-      ${Object.entries(SOURCES).map(([k, s]) => `<label class="check"><input type="checkbox" data-src="${k}" ${f.sources.includes(k) ? "checked" : ""}><i style="background:${s.color}"></i>${s.label}<span class="n">${countBy(k)}</span></label>`).join("")}
+      ${FUNDER_GROUPS.map((g) => {
+        const keys = g.keys.filter((k) => countBy(k) || (k !== "manual" && !EU_GROUPS.includes(k)));
+        if (!keys.length) return "";
+        const on = keys.filter((k) => f.sources.includes(k)).length;
+        const total = keys.reduce((n, k) => n + countBy(k), 0);
+        const single = keys.length === 1 && g.key === "own";
+        return `<div class="fgroup">
+          <label class="check fhead"><input type="checkbox" data-fgroup="${g.key}" ${on === keys.length ? "checked" : ""} ${on && on < keys.length ? 'data-mixed="1"' : ""}>${g.label}<span class="n">${total}</span></label>
+          ${single ? "" : keys.map((k) => `<label class="check sub"><input type="checkbox" data-src="${k}" ${f.sources.includes(k) ? "checked" : ""}><i style="background:${SOURCES[k].color}"></i>${SOURCES[k].label}<span class="n">${countBy(k)}</span></label>`).join("")}
+        </div>`;
+      }).join("")}
       <h2>Status</h2>
       ${[["open", "Open"], ["forthcoming", "Upcoming"], ["closed", "Closed"]].map(([k, l]) => `<label class="check"><input type="checkbox" data-status="${k}" ${f.status.includes(k) ? "checked" : ""}>${l}</label>`).join("")}
       <h2>Deadline within</h2>
@@ -291,7 +333,7 @@ function rowHtml(c) {
   const dl = nextDeadline(c);
   const dleft = daysLeft(dl);
   const cls = dleft !== null && dleft >= 0 && dleft <= 14 ? "urgent" : dleft !== null && dleft <= 45 ? "soon" : "";
-  const src = SOURCES[c.source] || SOURCES.manual;
+  const src = srcOf(c);
   const rel = c.relevance ?? 0;
   const dlHtml = dl ? `<b>${fmtDate(dl)}</b><span>${daysText(dleft)}${(c.deadlines || []).length > 1 ? " · 2-stage" : ""}</span>`
     : c.continuous ? `<b>Rolling</b><span>no deadline</span>`
@@ -304,7 +346,7 @@ function rowHtml(c) {
     <div>
       <div class="t">${esc(c.title)}</div>
       <div class="m">
-        <span class="fund">${esc(src.short)}${c.programme && c.programme !== c.funder ? " · " + esc(c.programme) : ""}${region}</span>
+        <span class="fund">${esc(src.short)}${c.programme && c.programme !== c.funder && c.programme !== src.label ? " · " + esc(c.programme) : ""}${region}</span>
         ${opens}
         ${isNew(c) ? `<span class="tag new">New</span>` : ""}
         ${n.idea ? `<span class="tag idea" title="Project idea">${esc(n.idea)}</span>` : ""}
@@ -324,7 +366,7 @@ function metaHtml() {
   const m = S.meta;
   if (!m.lastRun) return "";
   const when = new Date(m.lastRun);
-  const counts = Object.entries(m.counts || {}).map(([k, n]) => `${SOURCES[k]?.short || k} ${n}`).join(", ");
+  const counts = Object.entries(m.counts || {}).map(([k, n]) => `${SOURCE_SHORT[k] || k} ${n}`).join(", ");
   const errs = Object.keys(m.errors || {});
   return `<p class="foot-meta">Calls updated ${when.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })} at ${when.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}. From: ${esc(counts)}.${errs.length ? ` The update failed for ${esc(errs.join(", "))}; showing the previous data.` : ""}</p>`;
 }
@@ -357,7 +399,7 @@ function renderRadar(el, list) {
     stacks.set(bucket, k + 1);
     const size = 9 + Math.round(((c.relevance ?? 0) / 100) * 9);
     html += `<button class="dot ${fav(c.id) ? "fav" : ""} ${highlight.has(c.id) ? "hit" : ""}" data-id="${esc(c.id)}" aria-label="${esc(c.title)}, deadline ${fmtDate(nextDeadline(c))}"
-      style="left:${px}%;bottom:${28 + k * 15}px;width:${size}px;height:${size}px;background:${(SOURCES[c.source] || SOURCES.manual).color}"
+      style="left:${px}%;bottom:${28 + k * 15}px;width:${size}px;height:${size}px;background:${srcOf(c).color}"
       data-tip="${esc(`${fmtDate(nextDeadline(c))} · ${c.title}`)}"></button>`;
   }
   el.innerHTML = html;
@@ -379,7 +421,19 @@ function bindList(v) {
   const f = S.filters;
   const upd = () => { saveFilters(); refresh(); };
   $("#q").oninput = (e) => { f.q = e.target.value; clearTimeout(bindList._t); bindList._t = setTimeout(upd, 160); };
-  $$("[data-src]", v).forEach((i) => (i.onchange = () => { f.sources = $$("[data-src]:checked", v).map((x) => x.dataset.src); upd(); }));
+  $$("[data-src]", v).forEach((i) => (i.onchange = () => {
+    const shown = $$("[data-src]", v).map((x) => x.dataset.src);
+    f.sources = [...f.sources.filter((s) => !shown.includes(s)), ...$$("[data-src]:checked", v).map((x) => x.dataset.src)];
+    upd();
+  }));
+  $$("[data-fgroup]", v).forEach((i) => {
+    i.indeterminate = !!i.dataset.mixed;
+    i.onchange = () => {
+      const keys = FUNDER_GROUPS.find((g) => g.key === i.dataset.fgroup).keys;
+      f.sources = i.checked ? [...new Set([...f.sources, ...keys])] : f.sources.filter((s) => !keys.includes(s));
+      upd();
+    };
+  });
   $$("[data-status]", v).forEach((i) => (i.onchange = () => { f.status = $$("[data-status]:checked", v).map((x) => x.dataset.status); upd(); }));
   $$("[data-win]", v).forEach((b) => (b.onclick = () => { f.window = b.dataset.win; upd(); }));
   $("#minrel").oninput = (e) => { $("#minrel-v").textContent = e.target.value; };
@@ -438,7 +492,7 @@ function ideaPanelHtml() {
           <div class="fit" title="Fit with the idea, 0-100"><b>${m.fit}</b><span>fit</span></div>
           <div class="mbody">
             <button class="mtitle" data-open="${esc(c.id)}">${esc(c.title)}</button>
-            <div class="m"><span>${esc((SOURCES[c.source] || SOURCES.manual).short)}${c.programme && c.programme !== c.funder ? " · " + esc(c.programme) : ""}</span><span>${dl ? `deadline ${fmtDate(dl)} (${daysText(daysLeft(dl))})` : c.continuous ? "rolling call" : "deadline not known"}</span></div>
+            <div class="m"><span>${esc(srcOf(c).short)}${c.programme && c.programme !== c.funder ? " · " + esc(c.programme) : ""}</span><span>${dl ? `deadline ${fmtDate(dl)} (${daysText(daysLeft(dl))})` : c.continuous ? "rolling call" : "deadline not known"}</span></div>
             ${m.why ? `<p>${esc(m.why)}</p>` : ""}
             ${m.angle ? `<p class="angle"><b>Angle:</b> ${esc(m.angle)}</p>` : ""}
           </div>
@@ -538,7 +592,7 @@ function renderDrawerBody() {
   if (!dr) return;
   const c = S.byId.get(S.openId);
   const n = noteOf(c.id);
-  const src = SOURCES[c.source] || SOURCES.manual;
+  const src = srcOf(c);
   const dl = nextDeadline(c);
   const editable = isMember();
   const keepComposer = $("#cm-text")?.value || "";
@@ -746,7 +800,7 @@ function renderBoard(v) {
     ${total ? `<div class="board">${cols.map(([k, l]) => `<div class="col"><h3>${l}<span>${byStage[k].length}</span></h3>
       ${byStage[k].sort((a, b) => (nextDeadline(a) || "9").localeCompare(nextDeadline(b) || "9")).map((c) => {
         const n = noteOf(c.id);
-        return `<div class="item" data-id="${esc(c.id)}" tabindex="0" style="border-left-color:${(SOURCES[c.source] || SOURCES.manual).color}">
+        return `<div class="item" data-id="${esc(c.id)}" tabindex="0" style="border-left-color:${srcOf(c).color}">
           ${n.idea ? `<div class="idea-line">${esc(n.idea)}</div>` : ""}${esc(c.title)}
           <div class="d">${nextDeadline(c) ? `${fmtDate(nextDeadline(c))} · ${daysText(daysLeft(nextDeadline(c)))}` : c.continuous ? "Rolling" : "No deadline"}${(n.people || []).length ? " · " + n.people.map((p) => esc(personName(p).split(" ")[0])).join(", ") : ""}</div>
         </div>`;
@@ -814,6 +868,115 @@ function openPartner(pid, linked) {
   $("#pdel").onclick = async () => {
     if (!(await askConfirm(`Delete ${p.name} from the partner list?`))) return;
     await S.store.deletePartner(pid); closeModal(); toast("Partner deleted");
+  };
+}
+
+/* ================= Relevance profile ================= */
+
+const fmtWeight = (w) => String(Math.round(Number(w) * 10) / 10);
+
+function renderProfile(v) {
+  if (S.profileDraft) return renderProfileEditor(v);
+  const p = S.profile;
+  const when = p?.updatedAt ? new Date(p.updatedAt) : null;
+  const chips = (list, cls = "") => (list || []).length
+    ? `<div class="kw-chips">${[...list].sort((a, b) => b.weight - a.weight || a.word.localeCompare(b.word)).map((k) => `<span class="kw ${cls}">${esc(k.word)}<b>${cls ? "−" : ""}${fmtWeight(k.weight)}</b></span>`).join("")}</div>`
+    : `<p class="summary">None.</p>`;
+  v.innerHTML = `<div class="page profile">
+    <h1>Relevance profile</h1>
+    <p>This describes the team to Claude. Claude uses it every night to score how well each call fits and to write the reasons, and the idea search uses it too. The keywords give a quick score for calls that Claude has not assessed yet.</p>
+    ${p === undefined ? `<p class="summary">Loading…</p>` : p === null ? `<div class="empty"><b>No profile yet</b>The collector creates it from its starting settings on its first run.${isAdmin() ? " You can also write it now." : ""}</div>` : `
+    <section class="pf-block">
+      <h2>Team description</h2>
+      <p class="pf-org">${esc(p.organisation)}</p>
+    </section>
+    <section class="pf-block">
+      <h2>Keywords <span>${(p.keywords || []).length}</span></h2>
+      <p class="hint">A call earns the weight when the word appears in its text, and twice the weight when it is in the title.</p>
+      ${chips(p.keywords)}
+    </section>
+    <section class="pf-block">
+      <h2>Negative keywords <span>${(p.negative || []).length}</span></h2>
+      <p class="hint">These lower the score.</p>
+      ${chips(p.negative, "neg")}
+    </section>
+    <p class="foot-meta">Last edited${p.updatedBy ? ` by ${esc(p.updatedBy === "config.yaml" ? "the starting settings" : p.updatedBy)}` : ""}${when ? ` on ${when.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}` : ""}.${isAdmin() ? "" : " Only admins can change the profile."}</p>`}
+    ${isAdmin() ? `<button class="btn" id="pf-edit">${p ? "Edit profile" : "Write profile"}</button>` : ""}
+  </div>`;
+  $("#pf-edit") && ($("#pf-edit").onclick = () => {
+    const base = S.profile || { organisation: "", keywords: [], negative: [] };
+    S.profileDraft = { organisation: base.organisation || "", keywords: structuredClone(base.keywords || []), negative: structuredClone(base.negative || []) };
+    refresh();
+  });
+}
+
+function renderProfileEditor(v) {
+  const d = S.profileDraft;
+  const rows = (kind) => d[kind].map((k, i) => `<div class="kw-row">
+      <label class="sr" for="${kind}-w-${i}">Word</label><input id="${kind}-w-${i}" data-kind="${kind}" data-i="${i}" data-f="word" value="${esc(k.word)}" placeholder="word or start of a word">
+      <label class="sr" for="${kind}-n-${i}">Weight</label><input id="${kind}-n-${i}" data-kind="${kind}" data-i="${i}" data-f="weight" type="number" min="0.5" max="10" step="0.5" value="${esc(fmtWeight(k.weight))}">
+      <button type="button" class="linkbtn" data-rmrow="${kind}:${i}" aria-label="Remove ${esc(k.word || "row")}">Remove</button>
+    </div>`).join("");
+  const orgChanged = (d.organisation || "").trim() !== (S.profile?.organisation || "").trim();
+  v.innerHTML = `<div class="page profile">
+    <h1>Edit relevance profile</h1>
+    <form id="pf-form">
+      <div class="field"><label for="pf-org">Team description for Claude</label>
+        <textarea id="pf-org" rows="7" maxlength="3000">${esc(d.organisation)}</textarea>
+        <p class="hint">Write it the way you would brief a colleague: who you are, your research themes, how you usually take part in projects (partner, coordinator) and where you are based. Plain sentences work best.</p></div>
+      <div class="pf-cols">
+        <div class="field"><span class="lbl">Keywords and weights</span>${rows("keywords")}<button type="button" class="btn ghost small" data-addrow="keywords">Add keyword</button></div>
+        <div class="field"><span class="lbl">Negative keywords and weights</span>${rows("negative")}<button type="button" class="btn ghost small" data-addrow="negative">Add negative keyword</button></div>
+      </div>
+      <p class="hint">Keywords match parts of words in Finnish and English, so <i>photovolta</i> also matches photovoltaic and photovoltaics. Weights from 1 (weak) to 4 (strong) work well.</p>
+      <div class="pf-note ${orgChanged ? "warn" : ""}" id="pf-note">${orgChanged
+        ? "You changed the team description. On the next nightly run Claude will assess every call again with the new description. That costs about $0.25 of API usage."
+        : "Keyword changes take effect on the next nightly run and cost nothing."}</div>
+      <div class="foot"><button type="button" class="btn ghost" id="pf-cancel">Cancel</button><button class="btn" type="submit">Save profile</button></div>
+    </form>
+  </div>`;
+  $("#pf-org").oninput = (e) => {
+    d.organisation = e.target.value;
+    const changed = d.organisation.trim() !== (S.profile?.organisation || "").trim();
+    const note = $("#pf-note");
+    note.classList.toggle("warn", changed);
+    note.textContent = changed
+      ? "You changed the team description. On the next nightly run Claude will assess every call again with the new description. That costs about $0.25 of API usage."
+      : "Keyword changes take effect on the next nightly run and cost nothing.";
+  };
+  $$("[data-kind]", v).forEach((inp) => (inp.oninput = () => {
+    const row = d[inp.dataset.kind][Number(inp.dataset.i)];
+    row[inp.dataset.f] = inp.dataset.f === "weight" ? Number(inp.value) : inp.value;
+  }));
+  $$("[data-addrow]", v).forEach((b) => (b.onclick = () => {
+    d[b.dataset.addrow].push({ word: "", weight: 2 });
+    refresh();
+    const n = d[b.dataset.addrow].length - 1;
+    $(`#${b.dataset.addrow}-w-${n}`)?.focus();
+  }));
+  $$("[data-rmrow]", v).forEach((b) => (b.onclick = () => {
+    const [kind, i] = b.dataset.rmrow.split(":");
+    d[kind].splice(Number(i), 1);
+    refresh();
+  }));
+  $("#pf-cancel").onclick = () => { S.profileDraft = null; refresh(); };
+  $("#pf-form").onsubmit = async (e) => {
+    e.preventDefault();
+    const org = d.organisation.trim();
+    if (org.length < 40) { toast("Describe the team in at least a couple of sentences."); $("#pf-org").focus(); return; }
+    const clean = (list) => {
+      const seen = new Set();
+      return list.map((k) => ({ word: String(k.word || "").trim().toLowerCase(), weight: Math.min(10, Math.max(0.5, Math.abs(Number(k.weight) || 1))) }))
+        .filter((k) => k.word && !seen.has(k.word) && seen.add(k.word));
+    };
+    const btn = $("#pf-form button[type=submit]"); btn.disabled = true;
+    try {
+      await S.store.saveProfile({ organisation: org, keywords: clean(d.keywords), negative: clean(d.negative) });
+      S.profileDraft = null; refresh(); toast("Profile saved");
+    } catch (err) {
+      btn.disabled = false;
+      toast(`The profile could not be saved: ${err.message || err}`);
+    }
   };
 }
 

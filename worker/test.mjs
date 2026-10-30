@@ -7,6 +7,9 @@ const token = (email, verified = true) => `x.${b64({ email, email_verified: veri
 const env = { FIREBASE_PROJECT_ID: "p", ALLOWED_ORIGINS: "https://aheinon.github.io", ANTHROPIC_API_KEY: "k", MODEL: "claude-haiku-5-5" };
 let sentPrompt = "";
 globalThis.fetch = async (url, opts) => {
+  if (url.endsWith("/settings/profile")) {
+    return new Response(JSON.stringify({ fields: { organisation: { stringValue: "PROFILE FROM FIRESTORE: NERC energy team" } } }), { status: 200 });
+  }
   if (url.includes("firestore")) {
     const ok = url.endsWith("allowlist/aleksi%40turkuamk.fi") && opts.headers.Authorization.includes("x.");
     return new Response(ok ? JSON.stringify({ fields: { role: { stringValue: "member" } } }) : "{}", { status: ok ? 200 : 403 });
@@ -25,6 +28,7 @@ let r = await worker.fetch(req({ idea: "Pilot of shared rooftop PV and storage i
 let j = await r.json();
 assert.equal(r.status, 200); assert.deepEqual(j.matches.map((m) => m.id), ["eu:A"]); assert.equal(j.note, "ok");
 assert.ok(sentPrompt.includes("Solar PV production") && sentPrompt.includes("housing company"));
+assert.ok(sentPrompt.includes("PROFILE FROM FIRESTORE"));
 
 r = await worker.fetch(req({ idea: "Pilot of shared rooftop PV and storage", lines }, token("stranger@x.com")), env); assert.equal(r.status, 403);
 r = await worker.fetch(req({ idea: "Pilot of shared rooftop PV and storage", lines }, token("aleksi@turkuamk.fi", false)), env); assert.equal(r.status, 401);
