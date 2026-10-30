@@ -198,7 +198,7 @@ def test_ai_scorer_with_fake_client(monkeypatch):
     reply = '{"score": 140, "reason": "Fits PV research.", "tags": ["aurinkosähkö"], "eligible": "kyllä", ' \
             '"deadline": "2099-05-01", "opens": null, "continuous": false}'
     fake = SimpleNamespace(messages=SimpleNamespace(create=lambda **kw: SimpleNamespace(
-        content=[SimpleNamespace(text="Tässä: " + reply)], usage=SimpleNamespace(input_tokens=900, output_tokens=60))))
+        content=[SimpleNamespace(type="thinking", thinking="", signature="x"), SimpleNamespace(type="text", text="Tässä: " + reply)], usage=SimpleNamespace(input_tokens=900, output_tokens=60))))
     scorer.client = fake
     c = Call(id="bf:x", source="bf", title="PV", url="u", funder="BF")
     eu_low = Call(id="eu:y", source="eu", title="Space", url="u", funder="EC")
@@ -223,7 +223,7 @@ def _fake_scorer(monkeypatch, budget, reply):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "test")
     scorer = AiScorer({"max_calls_per_run": budget}, {"organisation": "NERC"})
     scorer.client = SimpleNamespace(messages=SimpleNamespace(create=lambda **kw: SimpleNamespace(
-        content=[SimpleNamespace(text=reply)], usage=SimpleNamespace(input_tokens=10, output_tokens=5))))
+        content=[SimpleNamespace(type="thinking", signature="x"), SimpleNamespace(type="text", text=reply)], usage=SimpleNamespace(input_tokens=10, output_tokens=5))))
     return scorer
 
 

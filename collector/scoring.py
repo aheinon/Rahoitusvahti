@@ -105,13 +105,19 @@ class AiScorer:
         )
         try:
             msg = self.client.messages.create(
-                model=self.model, max_tokens=600,
+                model=self.model, max_tokens=1200,
                 messages=[{"role": "user", "content": prompt}],
+                # A short classification task: no thinking needed, which keeps it fast and cheap.
+                # (Claude Haiku 5.5 thinks adaptively by default; "disabled" is allowed at effort high or below.)
+                thinking={"type": "disabled"},
+                output_config={"effort": "low"},
             )
             with self._lock:
                 self.tokens_in += msg.usage.input_tokens
                 self.tokens_out += msg.usage.output_tokens
-            data = _parse_json(msg.content[0].text)
+            # Responses can start with a thinking block, so read only the text blocks
+            text = "".join(b.text for b in msg.content if getattr(b, "type", "") == "text")
+            data = _parse_json(text)
             data["score"] = max(0, min(100, int(data.get("score", 0))))
             return data
         except Exception as e:

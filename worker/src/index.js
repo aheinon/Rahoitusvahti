@@ -68,7 +68,8 @@ export default {
     const ar = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: { "x-api-key": env.ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json" },
-      body: JSON.stringify({ model: env.MODEL || "claude-haiku-5-5", max_tokens: 1800, messages: [{ role: "user", content: prompt }] }),
+      // Matching an idea to calls benefits from some thinking; thinking tokens count toward max_tokens.
+      body: JSON.stringify({ model: env.MODEL || "claude-haiku-5-5", max_tokens: 8000, output_config: { effort: "medium" }, messages: [{ role: "user", content: prompt }] }),
     });
     if (!ar.ok) {
       const detail = await ar.text();

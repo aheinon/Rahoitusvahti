@@ -16,7 +16,7 @@ globalThis.fetch = async (url, opts) => {
   }
   sentPrompt = JSON.parse(opts.body).messages[0].content;
   return new Response(JSON.stringify({
-    content: [{ type: "text", text: 'Here: {"matches":[{"id":"eu:A","fit":91,"why":"PV","angle":"pilot"},{"id":"eu:FAKE","fit":99,"why":"x"}],"note":"ok"}' }],
+    content: [{ type: "thinking", thinking: "", signature: "s" }, { type: "text", text: 'Here: {"matches":[{"id":"eu:A","fit":91,"why":"PV","angle":"pilot"},{"id":"eu:FAKE","fit":99,"why":"x"}],"note":"ok"}' }],
     usage: { input_tokens: 1000, output_tokens: 80 },
   }), { status: 200 });
 };
