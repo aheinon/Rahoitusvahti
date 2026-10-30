@@ -1,5 +1,5 @@
 import { createDemoStore, createFirebaseStore } from "./data.js";
-import { callLine } from "./idea-prompt.js";
+import { callLine, DEFAULT_PROFILE } from "./idea-prompt.js";
 
 /* ================= Constants and helpers ================= */
 
@@ -885,7 +885,7 @@ function renderProfile(v) {
   v.innerHTML = `<div class="page profile">
     <h1>Relevance profile</h1>
     <p>This describes the team to Claude. Claude uses it every night to score how well each call fits and to write the reasons, and the idea search uses it too. The keywords give a quick score for calls that Claude has not assessed yet.</p>
-    ${p === undefined ? `<p class="summary">Loading…</p>` : p === null ? `<div class="empty"><b>No profile yet</b>The collector creates it from its starting settings on its first run.${isAdmin() ? " You can also write it now." : ""}</div>` : `
+    ${p === undefined ? `<p class="summary">Loading…</p>` : p === null ? `<div class="empty"><b>No profile saved yet</b>${isAdmin() ? "Open the editor to start from the suggested NERC profile, adjust it if needed and save it." : "The collector creates it on its first run, or an admin can save it before that."}</div>` : `
     <section class="pf-block">
       <h2>Team description</h2>
       <p class="pf-org">${esc(p.organisation)}</p>
@@ -901,10 +901,10 @@ function renderProfile(v) {
       ${chips(p.negative, "neg")}
     </section>
     <p class="foot-meta">Last edited${p.updatedBy ? ` by ${esc(p.updatedBy === "config.yaml" ? "the starting settings" : p.updatedBy)}` : ""}${when ? ` on ${when.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}` : ""}.${isAdmin() ? "" : " Only admins can change the profile."}</p>`}
-    ${isAdmin() ? `<button class="btn" id="pf-edit">${p ? "Edit profile" : "Write profile"}</button>` : ""}
+    ${isAdmin() ? `<button class="btn" id="pf-edit">${p ? "Edit profile" : "Start from suggested profile"}</button>` : ""}
   </div>`;
   $("#pf-edit") && ($("#pf-edit").onclick = () => {
-    const base = S.profile || { organisation: "", keywords: [], negative: [] };
+    const base = S.profile || DEFAULT_PROFILE;
     S.profileDraft = { organisation: base.organisation || "", keywords: structuredClone(base.keywords || []), negative: structuredClone(base.negative || []) };
     refresh();
   });
@@ -917,7 +917,7 @@ function renderProfileEditor(v) {
       <label class="sr" for="${kind}-n-${i}">Weight</label><input id="${kind}-n-${i}" data-kind="${kind}" data-i="${i}" data-f="weight" type="number" min="0.5" max="10" step="0.5" value="${esc(fmtWeight(k.weight))}">
       <button type="button" class="linkbtn" data-rmrow="${kind}:${i}" aria-label="Remove ${esc(k.word || "row")}">Remove</button>
     </div>`).join("");
-  const orgChanged = (d.organisation || "").trim() !== (S.profile?.organisation || "").trim();
+  const orgChanged = !!S.profile && (d.organisation || "").trim() !== (S.profile.organisation || "").trim();
   v.innerHTML = `<div class="page profile">
     <h1>Edit relevance profile</h1>
     <form id="pf-form">
@@ -937,7 +937,7 @@ function renderProfileEditor(v) {
   </div>`;
   $("#pf-org").oninput = (e) => {
     d.organisation = e.target.value;
-    const changed = d.organisation.trim() !== (S.profile?.organisation || "").trim();
+    const changed = !!S.profile && d.organisation.trim() !== (S.profile.organisation || "").trim();
     const note = $("#pf-note");
     note.classList.toggle("warn", changed);
     note.textContent = changed
