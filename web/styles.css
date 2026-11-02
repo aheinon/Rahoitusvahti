@@ -496,3 +496,41 @@ button.tag.new:hover { filter: brightness(.94); }
 .ib-pick .check { display: flex; align-items: center; gap: 8px; font-size: 14px; margin: 0; }
 .ib-pick input[type="checkbox"] { width: auto; min-height: 0; margin: 0; flex: none; }
 .modal .hint { font-size: 13px; color: var(--ink-2); margin: 4px 0 0; }
+
+/* ---------- Network ---------- */
+.net-page { max-width: 1240px; }
+.net-bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 14px 0; }
+.net-bar .spacer { flex: 1; }
+.net-stats { display: flex; flex-wrap: wrap; gap: 10px 22px; align-items: center; margin-bottom: 14px; }
+.net-stats > div:not(.net-types) b { font-size: 26px; display: block; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.net-stats > div:not(.net-types) span { font-size: 13px; color: var(--ink-2); }
+.net-types { display: flex; flex-wrap: wrap; gap: 6px; }
+.net-types .tag.on { background: var(--ink); color: var(--paper); }
+.net-main { display: grid; grid-template-columns: minmax(0, 1fr) 240px; gap: 18px; align-items: start; }
+.net-left .search { width: 100%; margin-bottom: 10px; }
+.net-map { height: 520px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--chip); z-index: 0; }
+.net-left .hint, .net-page .hint { font-size: 13px; color: var(--ink-2); }
+.net-table { overflow-x: auto; max-height: 560px; overflow-y: auto; border: 1px solid var(--line); border-radius: var(--radius); }
+.net-table .t { margin: 0; }
+.net-table th .linkbtn { font-weight: 650; color: inherit; }
+.net-countries h2 { font-size: 14px; margin: 0 0 8px; }
+.net-country { display: grid; grid-template-columns: 30px 1fr 30px; align-items: center; gap: 6px; width: 100%; border: 0; background: none; padding: 3px 0; cursor: pointer; font: inherit; font-size: 13px; color: var(--ink); text-align: left; }
+.net-country i { display: block; height: 10px; border-radius: 3px; background: var(--src-eu); }
+.net-country b { text-align: right; font-variant-numeric: tabular-nums; }
+.net-country:hover span { text-decoration: underline; }
+.leaflet-popup-content { font: 13px/1.4 inherit; }
+@media (max-width: 860px) { .net-main { grid-template-columns: 1fr; } .net-map { height: 380px; } }
+
+/* ---------- Consortium radar ---------- */
+.radar-sec .hint { font-size: 13px; color: var(--ink-2); line-height: 1.45; }
+.radar-known { font-size: 14px; margin: 8px 0; padding: 7px 10px; border-radius: var(--radius); background: color-mix(in srgb, var(--sun) 14%, var(--surface)); }
+.radar-item { padding: 10px 0; border-top: 1px solid var(--line-2); }
+.radar-h { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; }
+.radar-t { margin: 2px 0 6px; }
+.pchip { background: transparent; border: 1px solid var(--line); }
+.pchip small { color: var(--ink-3); margin-left: 2px; }
+.pchip.known { background: color-mix(in srgb, var(--sun) 28%, var(--surface)); border-color: color-mix(in srgb, var(--sun) 70%, var(--line)); color: var(--ink); font-weight: 600; }
+.pchip.coord { border-width: 1.5px; }
+.net-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13px; color: var(--ink-2); margin: 8px 0 2px; }
+.net-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; }
+.net-legend i.ring { background: transparent; box-shadow: 0 0 0 2.5px var(--sun) inset; }

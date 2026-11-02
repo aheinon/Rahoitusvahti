@@ -124,3 +124,8 @@ ai:
   team_examples: 12
 
 retention_days_after_close: 60   # how long closed calls stay in the list
+
+network:                         # network.py (weekly): partner network and consortium radar from CORDIS
+  organisation_id: "948193431"   # Turku UAS in CORDIS (TURUN AMMATTIKORKEAKOULU OY)
+  radar_projects: 4              # similar funded projects shown per Horizon Europe call
+  radar_min_score: 0.15          # 0-1, higher = only close matches

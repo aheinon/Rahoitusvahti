@@ -42,6 +42,13 @@ service cloud.firestore {
     match /index/{doc} { allow read: if allowed(); allow write: if false; }
     match /meta/{doc}  { allow read: if allowed(); allow write: if false; }
     match /texts/{doc} { allow read: if allowed(); allow write: if false; }   // full call texts for Claude
+    match /radar/{doc} { allow read: if allowed(); allow write: if false; }   // similar funded projects (CORDIS)
+    match /network/{doc} { allow read: if isMember(); allow write: if false; } // Turku UAS's EU partners (CORDIS)
+
+    // Which CORDIS projects are NERC's own, and projects added by hand (Erasmus+, Interreg, national ...)
+    match /netProjects/{id} {
+      allow read, write: if isMember();
+    }
 
     // Idea bank: project ideas and their building blocks (pilot sites, needs, resources ...).
     // Team only - partners do not see it.

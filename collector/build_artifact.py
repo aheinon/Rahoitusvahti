@@ -4,6 +4,7 @@ root = os.path.join(os.path.dirname(__file__), "..", "web")
 out = sys.argv[1] if len(sys.argv) > 1 else os.path.join(root, "..", "dist", "rahoitusvahti-demo.html")
 r = lambda f: open(os.path.join(root, f), encoding="utf-8").read()
 data = json.loads(r("demo-data.json"))
+network = json.loads(r("demo-network.json"))
 strip = lambda t: re.sub(r"^export ", "", re.sub(r"^import .*?;\n", "", t, flags=re.M), flags=re.M)
 prompt_js = strip(r("idea-prompt.js"))
 data_js = strip(r("data.js"))
@@ -23,6 +24,7 @@ page = f"""<title>Rahoitusvahti</title>
 <script>
 window.RV_CONFIG = {{ firebase: null, appName: "Rahoitusvahti", orgName: "NERC · Turku UAS", noDownloads: true }};
 window.RV_DEMO_DATA = {json.dumps(data, ensure_ascii=False).replace("</", "<\\/")};
+window.RV_DEMO_NETWORK = {json.dumps(network, ensure_ascii=False).replace("</", "<\\/")};
 </script>
 <script type="module">
 {prompt_js}

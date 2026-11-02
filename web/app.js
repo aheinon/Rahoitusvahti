@@ -98,7 +98,8 @@ const safeUrl = (u) => (/^https?:\/\//i.test(String(u || "").trim()) ? String(u)
 const S = {
   store: null,
   calls: [], byId: new Map(), meta: {},
-  notes: {}, ratings: {}, ideaDocs: {}, pieces: [], pieceKind: "", develop: {}, partners: [], allow: [], me: { favorites: [] }, profile: undefined, profileDraft: null,
+  notes: {}, ratings: {}, ideaDocs: {}, pieces: [], net: null, netProjects: [], radar: {},
+  netView: { scope: LS.get("rv-net-scope", "nerc"), mode: LS.get("rv-net-mode", "map"), q: "", type: "", sort: "projects" }, pieceKind: "", develop: {}, partners: [], allow: [], me: { favorites: [] }, profile: undefined, profileDraft: null,
   view: LS.get("rv-view", "list"),
   filters: migrateFilters(Object.assign({}, DEFAULT_FILTERS, LS.get("rv-filters", {}))),
   sort: LS.get("rv-sort", "deadline"),
@@ -162,6 +163,7 @@ async function loadAll() {
   if (isMember()) {
     S.store.watchIdeas((d) => { S.ideaDocs = d || {}; if (S.view === "ideas") refresh(); else if (S.openId) renderDrawerBody(); });
     S.store.watchPieces((p) => { S.pieces = p || []; if (S.view === "ideas") refresh(); });
+    S.store.watchNetProjects((p) => { S.netProjects = p || []; if (S.view === "network") refresh(); else if (S.openId) renderDrawerBody(); });
   }
   S.store.watchAllow((a) => { S.allow = a; refresh(); });
   S.store.watchProfile((p) => { S.profile = p; if (S.view === "profile" && !S.profileDraft) refresh(); });
@@ -214,8 +216,8 @@ function renderDenied(email) {
 
 function renderShell() {
   const u = S.store.user;
-  const tabs = [["list", "Calls"]].concat(isMember() ? [["ideas", "Ideas"]] : []).concat([["board", "Pipeline"]]).concat([ ["partners", "Partners"], ["profile", "Profile"]]).concat(isAdmin() ? [["users", "Users"]] : []);
-  if ((S.view === "users" && !isAdmin()) || (S.view === "ideas" && !isMember())) S.view = "list";
+  const tabs = [["list", "Calls"]].concat(isMember() ? [["ideas", "Ideas"], ["network", "Network"]] : []).concat([["board", "Pipeline"]]).concat([ ["partners", "Partners"], ["profile", "Profile"]]).concat(isAdmin() ? [["users", "Users"]] : []);
+  if ((S.view === "users" && !isAdmin()) || (["ideas", "network"].includes(S.view) && !isMember())) S.view = "list";
   $("#app").innerHTML = `
   ${S.store.mode === "demo" ? `<div class="demo-band"><span>Demo: a sample of ${S.calls.length} real calls collected on 29 Oct and 2 Nov 2026 (the full service tracks several hundred). Your changes are saved in this browser only. AI summaries and reasons on the calls are examples.</span><button id="demo-reset">Reset demo</button></div>` : ""}
   <header class="top">
@@ -238,6 +240,7 @@ function refresh() {
   if (S.view === "list") renderListView(v);
   else if (S.view === "board") renderBoard(v);
   else if (S.view === "ideas") renderIdeas(v);
+  else if (S.view === "network") renderNetwork(v);
   else if (S.view === "partners") renderPartners(v);
   else if (S.view === "users") renderUsers(v);
   else if (S.view === "profile") renderProfile(v);
@@ -665,6 +668,7 @@ function openDrawer(id) {
   S.comments = [];
   renderDrawerBody();
   S.unsubComments = S.store.watchComments(id, (cs) => { S.comments = cs; renderComments(); });
+  loadRadarFor(S.byId.get(id));
   $("#drawer .close")?.focus();
 }
 function escClose(e) { if (e.key === "Escape" && !$(".modal")) closeDrawer(); }
@@ -732,6 +736,7 @@ function renderDrawerBody() {
     <div class="field"><span class="lbl">Potential partners</span>${chipEditor("partners", (n.partners || []).map((p) => [p, S.partners.find((x) => x.id === p)?.name || "(deleted)"]), editable, "Add a partner…")}</div>
     <div class="field"><span class="lbl">Tags</span>${chipEditor("tags", (n.tags || []).map((t) => [t, t]), editable, "Add a tag and press Enter")}</div>
   </section>
+  ${radarHtml(c)}
   ${developHtml(c, n)}
   <section>
     <h3>Comments</h3>
@@ -830,6 +835,7 @@ function bindDrawer(c, editable) {
   const dr = $("#drawer");
   $(".close", dr).onclick = closeDrawer;
   $("#dr-fav").onclick = () => toggleFav(c.id);
+  $$("[data-rmore]", dr).forEach((b) => (b.onclick = () => { const k = c.id + b.dataset.rmore; S.radarOpen = S.radarOpen === k ? null : k; renderDrawerBody(); }));
   $("#dev-desc") && ($("#dev-desc").oninput = (e) => { (S.develop[c.id] ||= {}).draft = e.target.value; });
   $("#dev-run") && ($("#dev-run").onclick = () => runDevelop(c));
   $("#dev-post") && ($("#dev-post").onclick = async () => {
@@ -962,7 +968,259 @@ function renderComments() {
   $$("[data-cdel]", el).forEach((b) => (b.onclick = async () => { if (await askConfirm("Delete this comment?")) S.store.deleteComment(S.openId, b.dataset.cdel); }));
 }
 
-/* ================= Idea bank ================= */
+/* ================= Partner network (CORDIS) ================= */
+
+const ORG_TYPE = { HES: "University", REC: "Research organisation", PRC: "Company", PUB: "Public body", OTH: "Other" };
+const ORG_TYPE_PL = { HES: "universities", REC: "research organisations", PRC: "companies", PUB: "public bodies", OTH: "others" };
+// Rough country centres for partners added by hand without coordinates (CORDIS codes: EL = Greece, UK)
+const COUNTRY_XY = { FI: [62.5, 25.5], SE: [60.1, 15.6], NO: [60.5, 8.5], DK: [56.0, 9.5], EE: [58.7, 25.5], LV: [56.9, 24.9], LT: [55.3, 23.9],
+  DE: [51.1, 10.4], NL: [52.2, 5.5], BE: [50.6, 4.6], LU: [49.8, 6.1], FR: [46.6, 2.4], ES: [40.3, -3.7], PT: [39.6, -8.0], IT: [42.8, 12.6],
+  AT: [47.6, 14.1], CH: [46.8, 8.2], PL: [52.1, 19.4], CZ: [49.8, 15.5], SK: [48.7, 19.7], HU: [47.2, 19.5], SI: [46.1, 14.8], HR: [45.1, 15.2],
+  RO: [45.9, 24.9], BG: [42.7, 25.5], EL: [39.1, 22.0], GR: [39.1, 22.0], CY: [35.0, 33.2], MT: [35.9, 14.4], IE: [53.4, -8.0], UK: [54.0, -2.5],
+  GB: [54.0, -2.5], IS: [64.9, -18.6], RS: [44.0, 20.9], TR: [39.0, 35.2], UA: [49.0, 31.4], AL: [41.1, 20.0], US: [39.8, -98.6], CA: [56.1, -106.3] };
+const normName = (s) => String(s || "").toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^A-Z0-9]+/g, " ").trim();
+
+async function ensureNetwork() {
+  if (S.net || S.netLoading || !isMember()) return;
+  S.netLoading = true;
+  try { S.net = await S.store.loadNetwork(); } catch (e) { S.net = { projects: [], orgs: [], error: e.message }; }
+  S.netLoading = false;
+  if (S.view === "network") refresh(); else if (S.openId) renderDrawerBody();
+}
+
+/** Partner organisations with NERC/Turku UAS scope, including partners of projects added by hand. */
+function networkModel() {
+  const net = S.net || { projects: [], orgs: [] };
+  const nercPids = new Set(S.netProjects.filter((p) => p.kind === "cordis" && p.nerc).map((p) => p.pid));
+  const projById = Object.fromEntries(net.projects.map((p) => [p.pid, p]));
+  const byName = new Map();
+  const orgs = net.orgs.map((o) => {
+    const x = { ...o, label: o.name, nercProjects: o.projects.filter((p) => nercPids.has(p)), manual: [] };
+    byName.set(normName(o.name), x);
+    return x;
+  });
+  for (const mp of S.netProjects.filter((p) => p.kind === "manual")) {
+    for (const pt of mp.partners || []) {
+      const key = normName(pt.name);
+      if (!key) continue;
+      let o = byName.get(key);
+      if (!o) {
+        o = { id: "m:" + key, name: pt.name, label: pt.name, country: (pt.country || "").toUpperCase(), city: pt.city || "", type: pt.type || "OTH",
+          geo: null, projects: [], coordinated: [], nercProjects: [], manual: [] };
+        byName.set(key, o); orgs.push(o);
+      }
+      o.manual.push({ name: mp.name, nerc: mp.nerc !== false, programme: mp.programme });
+    }
+  }
+  for (const o of orgs) {
+    o.nerc = o.nercProjects.length > 0 || o.manual.some((m) => m.nerc);
+    o.count = o.projects.length + o.manual.length;
+    o.nercCount = o.nercProjects.length + o.manual.filter((m) => m.nerc).length;
+    const h = [...o.name].reduce((a, ch) => (a * 31 + ch.charCodeAt(0)) >>> 0, 7);   // stable small offset
+    o.xy = o.geo || (COUNTRY_XY[o.country] ? [COUNTRY_XY[o.country][0] + ((h % 100) / 100 - 0.5) * 0.8, COUNTRY_XY[o.country][1] + (((h >> 8) % 100) / 100 - 0.5) * 1.2] : null);
+    o.projectNames = [...o.projects.map((p) => projById[p]?.acronym || p), ...o.manual.map((m) => m.name)];
+  }
+  return { orgs, projById, nercPids, net };
+}
+
+function renderNetwork(v) {
+  ensureNetwork();
+  const NV = S.netView;
+  if (!S.net) { v.innerHTML = `<div class="page"><h1>Network</h1><p class="summary">${S.netLoading ? "Loading the partner network…" : "Loading…"}</p></div>`; return; }
+  const M = networkModel();
+  const scoped = M.orgs.filter((o) => (NV.scope === "nerc" ? o.nerc : true));
+  const q = NV.q.trim().toLowerCase();
+  const shown = scoped.filter((o) => (!NV.type || o.type === NV.type) && (!q || `${o.name} ${o.city} ${o.country} ${o.projectNames.join(" ")}`.toLowerCase().includes(q)));
+  const countries = Object.entries(scoped.reduce((m, o) => ((m[o.country] = (m[o.country] || 0) + 1), m), {})).sort((a, b) => b[1] - a[1]);
+  const types = Object.entries(scoped.reduce((m, o) => ((m[o.type] = (m[o.type] || 0) + 1), m), {})).sort((a, b) => b[1] - a[1]);
+  const nercProjects = M.net.projects.filter((p) => M.nercPids.has(p.pid)).length + S.netProjects.filter((p) => p.kind === "manual" && p.nerc !== false).length;
+  const projCount = NV.scope === "nerc" ? nercProjects : M.net.projects.length + S.netProjects.filter((p) => p.kind === "manual").length;
+  const maxC = countries[0]?.[1] || 1;
+  const updated = M.net.updatedAt ? new Date(M.net.updatedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "";
+  const sorter = { projects: (a, b) => b.nercCount - a.nercCount || b.count - a.count || a.name.localeCompare(b.name), name: (a, b) => a.name.localeCompare(b.name), country: (a, b) => a.country.localeCompare(b.country) || a.name.localeCompare(b.name) }[NV.sort];
+  v.innerHTML = `<div class="page net-page">
+    <h1>Network</h1>
+    <p>Organisations we have worked with in EU projects (from CORDIS, updated weekly${updated ? `, last on ${updated}` : ""}) and in projects the team has added by hand. <b>Our projects</b> are the ones NERC took part in; <b>all Turku UAS</b> adds the partners of the university's other EU projects, a warmer start than a cold contact.</p>
+    <div class="net-bar">
+      <div class="seg" role="group" aria-label="Whose partners">${[["nerc", "Our projects"], ["tuas", "All Turku UAS"]].map(([k, l]) => `<button data-scope="${k}" aria-pressed="${NV.scope === k}">${l}</button>`).join("")}</div>
+      <div class="seg" role="group" aria-label="View">${[["map", "Map"], ["list", "List"]].map(([k, l]) => `<button data-mode="${k}" aria-pressed="${NV.mode === k}">${l}</button>`).join("")}</div>
+      <span class="spacer"></span>
+      <button class="btn ghost" id="net-csv">Download CSV</button>
+    </div>
+    <div class="net-stats">
+      <div><b>${scoped.length}</b><span>partner organisations</span></div>
+      <div><b>${countries.length}</b><span>countries</span></div>
+      <div><b>${projCount}</b><span>projects</span></div>
+      <div class="net-types">${types.map(([t, n]) => `<button class="tag ${NV.type === t ? "on" : ""}" data-type="${t}">${n} ${ORG_TYPE_PL[t] || t}</button>`).join("")}</div>
+    </div>
+    ${NV.scope === "nerc" && !nercProjects ? `<div class="pf-note warn">Mark NERC's own projects in the project list below (or add projects by hand) to see your direct partners. Until then, switch to <b>All Turku UAS</b>.</div>` : ""}
+    <div class="net-main">
+      <div class="net-left">
+        <label class="sr" for="net-q">Search organisations</label>
+        <input id="net-q" class="search" type="search" placeholder="Search by name, city, country or project" value="${esc(NV.q)}">
+        ${NV.mode === "map" ? `<div id="net-map" class="net-map" role="region" aria-label="Map of partner organisations"></div><div class="net-legend">${[["HES", "--src-aka"], ["REC", "--src-eu"], ["PRC", "--src-bf"], ["PUB", "--src-eura"], ["OTH", "--ink-3"]].map(([t, v]) => `<span><i style="background:var(${v})"></i>${ORG_TYPE[t]}</span>`).join("")}<span><i class="ring"></i>Partner in our own projects</span></div>
+          <p class="hint">Circle size = joint projects. Partners added by hand without coordinates are placed in the middle of their country.</p>`
+          : `<div class="net-table"><table class="t"><thead><tr>
+              <th><button class="linkbtn" data-sort="name">Organisation</button></th><th><button class="linkbtn" data-sort="country">Country</button></th><th>Type</th><th><button class="linkbtn" data-sort="projects">Joint projects</button></th></tr></thead><tbody>
+              ${[...shown].sort(sorter).map((o) => `<tr><td><b>${esc(o.name)}</b>${o.nerc ? ` <span class="tag new" title="Partner in our own projects">Ours</span>` : ""}${o.city ? `<div class="hint">${esc(o.city)}</div>` : ""}</td>
+                <td>${esc(o.country)}</td><td>${esc(ORG_TYPE[o.type] || o.type)}</td><td>${o.projectNames.map(esc).join(", ")}${o.coordinated?.length ? ` <span class="hint">(coordinator)</span>` : ""}</td></tr>`).join("")}
+            </tbody></table></div>`}
+      </div>
+      <aside class="net-countries"><h2>By country</h2>${countries.slice(0, 15).map(([c, n]) => `<button class="net-country" data-q="${esc(c)}"><span>${esc(c)}</span><i style="width:${Math.max(4, (n / maxC) * 100)}%"></i><b>${n}</b></button>`).join("")}</aside>
+    </div>
+    <section class="ib-block">
+      <div class="ib-head"><h2>Projects <span>${M.net.projects.length + S.netProjects.filter((p) => p.kind === "manual").length}</span></h2><button class="btn" id="np-add">Add a project by hand</button></div>
+      <p class="hint">Tick the EU projects NERC took part in. Add other projects (Erasmus+, Interreg, ERDF, Business Finland …) by hand with their partners.</p>
+      <div class="net-table"><table class="t"><thead><tr><th>NERC</th><th>Project</th><th>Programme</th><th>Years</th><th>Partners</th></tr></thead><tbody>
+        ${M.net.projects.map((p) => `<tr><td><input type="checkbox" data-nerc="${esc(p.pid)}" ${M.nercPids.has(p.pid) ? "checked" : ""} aria-label="NERC took part in ${esc(p.acronym)}"></td>
+          <td><a href="https://cordis.europa.eu/project/id/${esc(p.pid)}" target="_blank" rel="noopener noreferrer"><b>${esc(p.acronym)}</b></a>${p.tuasCoordinator ? ` <span class="tag">coordinator</span>` : ""}<div class="hint">${esc(p.title)}</div></td>
+          <td>${esc(p.programme)}<div class="hint">${esc(p.topic)}</div></td><td>${esc((p.start || "").slice(0, 4))}–${esc((p.end || "").slice(0, 4))}</td><td>${p.partners}</td></tr>`).join("")}
+        ${S.netProjects.filter((p) => p.kind === "manual").map((p) => `<tr><td><input type="checkbox" data-nercm="${esc(p.id)}" ${p.nerc !== false ? "checked" : ""} aria-label="NERC took part in ${esc(p.name)}"></td>
+          <td><b>${esc(p.name)}</b> <span class="tag">added by hand</span></td><td>${esc(p.programme || "")}</td><td>${esc(p.start || "")}${p.end ? "–" + esc(p.end) : ""}</td>
+          <td>${(p.partners || []).length} <button class="linkbtn" data-npedit="${esc(p.id)}">Edit</button></td></tr>`).join("")}
+      </tbody></table></div>
+    </section>
+  </div>`;
+  const re = () => refresh();
+  $$("[data-scope]", v).forEach((b) => (b.onclick = () => { NV.scope = b.dataset.scope; LS.set("rv-net-scope", NV.scope); re(); }));
+  $$("[data-mode]", v).forEach((b) => (b.onclick = () => { NV.mode = b.dataset.mode; LS.set("rv-net-mode", NV.mode); re(); }));
+  $$("[data-type]", v).forEach((b) => (b.onclick = () => { NV.type = NV.type === b.dataset.type ? "" : b.dataset.type; re(); }));
+  $$("[data-sort]", v).forEach((b) => (b.onclick = () => { NV.sort = b.dataset.sort; re(); }));
+  $$(".net-country", v).forEach((b) => (b.onclick = () => { NV.q = NV.q === b.dataset.q ? "" : b.dataset.q; re(); }));
+  $("#net-q").oninput = (e) => { NV.q = e.target.value; clearTimeout(renderNetwork._t); renderNetwork._t = setTimeout(() => { const pos = e.target.selectionStart; re(); const i = $("#net-q"); i?.focus(); i?.setSelectionRange(pos, pos); }, 250); };
+  $$("[data-nerc]", v).forEach((c) => (c.onchange = () => S.store.saveNetProject({ id: "cordis-" + c.dataset.nerc, kind: "cordis", pid: c.dataset.nerc, nerc: c.checked })));
+  $$("[data-nercm]", v).forEach((c) => (c.onchange = () => S.store.saveNetProject({ id: c.dataset.nercm, nerc: c.checked })));
+  $$("[data-npedit]", v).forEach((b) => (b.onclick = () => openNetProject(b.dataset.npedit)));
+  $("#np-add").onclick = () => openNetProject(null);
+  $("#net-csv").onclick = () => downloadNetworkCsv(shown);
+  if (NV.mode === "map") drawNetworkMap($("#net-map"), shown);
+}
+
+let _leaflet = null;
+function loadLeaflet() {
+  if (window.L) return Promise.resolve(window.L);
+  _leaflet ||= new Promise((resolve, reject) => {
+    const css = document.createElement("link");
+    css.rel = "stylesheet"; css.href = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css";
+    document.head.appendChild(css);
+    const js = document.createElement("script");
+    js.src = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js";
+    js.onload = () => resolve(window.L); js.onerror = () => reject(new Error("map library could not load"));
+    document.head.appendChild(js);
+  });
+  return _leaflet;
+}
+
+async function drawNetworkMap(el, orgs) {
+  if (!el) return;
+  let L;
+  try { L = await loadLeaflet(); } catch { el.innerHTML = `<p class="summary" style="padding:16px">The map could not load here. Use the List view.</p>`; return; }
+  if (!el.isConnected) return;
+  const css = getComputedStyle(document.documentElement);
+  const col = (k) => css.getPropertyValue(k).trim() || "#2F5DA8";
+  const map = L.map(el, { scrollWheelZoom: false, worldCopyJump: true }).setView([52, 14], 4);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 12, attribution: "© OpenStreetMap contributors" }).addTo(map);
+  L.circleMarker([60.45, 22.27], { radius: 9, color: col("--ink"), weight: 2, fillColor: col("--sun"), fillOpacity: 1 }).addTo(map).bindTooltip("Turku UAS");
+  const pts = [];
+  for (const o of orgs) {
+    if (!o.xy) continue;
+    const r = 4 + Math.sqrt(o.count) * 3;
+    const color = { HES: col("--src-aka"), REC: col("--src-eu"), PRC: col("--src-bf"), PUB: col("--src-eura"), OTH: col("--ink-3") }[o.type] || col("--ink-3");
+    const m = L.circleMarker(o.xy, { radius: r, color: o.nerc ? col("--sun") : color, weight: o.nerc ? 3 : 1, fillColor: color, fillOpacity: o.nerc ? 0.85 : 0.45 }).addTo(map);
+    m.bindPopup(`<b>${esc(o.name)}</b><br>${esc([o.city, o.country].filter(Boolean).join(", "))} · ${esc(ORG_TYPE[o.type] || o.type)}<br>${o.projectNames.map(esc).join(", ")}${o.nerc ? "<br><i>Partner in our own projects</i>" : ""}`);
+    pts.push(o.xy);
+  }
+  if (pts.length > 1) map.fitBounds(pts, { padding: [24, 24], maxZoom: 6 });
+}
+
+function downloadNetworkCsv(orgs) {
+  if (window.RV_CONFIG?.noDownloads) return toast(`CSV download (${orgs.length} organisations) works in the deployed service`);
+  const q = (x) => `"${String(x ?? "").replace(/"/g, '""')}"`;
+  const rows = [["Organisation", "Country", "City", "Type", "Joint projects", "Number of projects", "Partner in our own projects"].map(q).join(",")]
+    .concat(orgs.map((o) => [o.name, o.country, o.city, ORG_TYPE[o.type] || o.type, o.projectNames.join("; "), o.count, o.nerc ? "yes" : "no"].map(q).join(",")));
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob(["\ufeff" + rows.join("\r\n")], { type: "text/csv" }));
+  a.download = "partner-network.csv"; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+function openNetProject(id) {
+  const p = id ? S.netProjects.find((x) => x.id === id) : { name: "", programme: "", start: "", end: "", nerc: true, partners: [] };
+  const lines = (p.partners || []).map((x) => [x.name, x.country, x.city, x.type].filter((v, i) => v || i < 1).join("; ")).join("\n");
+  modal(`<h2>${id ? "Edit project" : "Add a project"}</h2>
+    <form id="npform">
+      <div class="field"><label for="np-name">Project name or acronym</label><input id="np-name" name="name" required maxlength="140" value="${esc(p.name)}"></div>
+      <div class="grid2">
+        <div class="field"><label for="np-prog">Programme</label><input id="np-prog" name="programme" maxlength="80" value="${esc(p.programme || "")}" placeholder="e.g. Erasmus+, Interreg Central Baltic, ERDF"></div>
+        <div class="field"><label for="np-years">Years</label><input id="np-years" name="years" maxlength="20" value="${esc([p.start, p.end].filter(Boolean).join("–"))}" placeholder="2024–2027"></div>
+      </div>
+      <label class="check"><input type="checkbox" name="nerc" ${p.nerc !== false ? "checked" : ""}>NERC took part</label>
+      <div class="field"><label for="np-partners">Partners, one per line: name; country code; city; type</label>
+        <textarea id="np-partners" name="partners" rows="7" placeholder="Example University; DE; Berlin; HES&#10;Solar Company Ltd; FI; Turku; PRC">${esc(lines)}</textarea>
+        <p class="hint">Type: HES university, REC research organisation, PRC company, PUB public body, OTH other. Country and city are optional; partners that match an EU partner by name get its location.</p></div>
+      <div class="foot">${id ? `<button type="button" class="btn danger" id="np-del">Delete</button>` : ""}<span style="flex:1"></span>
+        <button type="button" class="btn ghost" data-close>Cancel</button><button class="btn" type="submit">Save</button></div>
+    </form>`);
+  $("#npform").onsubmit = async (e) => {
+    e.preventDefault();
+    const d = Object.fromEntries(new FormData(e.target));
+    const [start, end] = String(d.years || "").split(/[–-]/).map((x) => x.trim());
+    const partners = String(d.partners || "").split("\n").map((l) => l.split(";").map((x) => x.trim())).filter((x) => x[0])
+      .slice(0, 80).map(([name, country = "", city = "", type = ""]) => ({ name, country: country.toUpperCase().slice(0, 2), city, type: ORG_TYPE[type.toUpperCase()] ? type.toUpperCase() : "OTH" }));
+    await S.store.saveNetProject({ ...(id ? { id } : {}), kind: "manual", name: d.name.trim(), programme: d.programme.trim(), start: start || "", end: end || "", nerc: !!d.nerc, partners });
+    closeModal(); toast("Project saved");
+  };
+  $("#np-del") && ($("#np-del").onclick = async () => {
+    if (!(await askConfirm(`Delete “${p.name}” and its partner list?`))) return;
+    await S.store.deleteNetProject(id); closeModal(); toast("Project deleted");
+  });
+}
+
+/* ---- Consortium radar: who won similar calls ---- */
+
+async function loadRadarFor(c) {
+  if (!c || c.source !== "eu" || !/^eu:HORIZON/.test(c.id) || S.radar[c.id]) return;
+  S.radar[c.id] = { loading: true };
+  ensureNetwork();
+  try { S.radar[c.id] = { items: await S.store.loadRadar(c.id) }; } catch { S.radar[c.id] = { items: [] }; }
+  if (S.openId === c.id) renderDrawerBody();
+}
+
+function radarHtml(c) {
+  if (c.source !== "eu" || !/^eu:HORIZON/.test(c.id)) return "";
+  const R = S.radar[c.id];
+  if (!R || R.loading) return `<section class="radar-sec"><h3>Who won similar calls</h3><p class="hint">Loading…</p></section>`;
+  if (!R.items?.length) return `<section class="radar-sec"><h3>Who won similar calls</h3><p class="hint">No similar funded Horizon Europe projects found yet. The comparison is updated weekly from CORDIS.</p></section>`;
+  const M = S.net ? networkModel() : null;
+  const known = new Map();
+  if (M) for (const o of M.orgs) { known.set(o.id, o); known.set(normName(o.name), o); }
+  const partnerNames = new Set(S.partners.map((p) => normName(p.name)));
+  const isKnown = (pt) => known.get(pt.id) || known.get(normName(pt.name));
+  const all = R.items.flatMap((r) => r.partners);
+  const typeCount = all.reduce((m, p) => ((m[p.type] = (m[p.type] || 0) + 1), m), {});
+  const avg = Object.entries(typeCount).sort((a, b) => b[1] - a[1]).map(([t, n]) => `${(n / R.items.length).toFixed(1).replace(/\.0$/, "")} ${ORG_TYPE_PL[t] || t}`).join(", ");
+  const fi = [...new Set(all.filter((p) => p.country === "FI").map((p) => p.name))];
+  const knownHits = [...new Map(all.filter((p) => isKnown(p) || partnerNames.has(normName(p.name))).map((p) => [normName(p.name), p])).values()];
+  return `<section class="radar-sec">
+    <h3>Who won similar calls</h3>
+    <p class="hint">Funded Horizon Europe projects closest to this call (CORDIS). On average, the consortia listed here had ${esc(avg)}${fi.length ? `. Finnish partners: ${esc(fi.slice(0, 6).join(", "))}` : ""}.</p>
+    ${knownHits.length ? `<p class="radar-known"><b>${knownHits.length} you already know:</b> ${knownHits.slice(0, 8).map((p) => esc(p.name)).join(", ")}</p>` : ""}
+    ${R.items.map((r, i) => {
+      const open = S.radarOpen === c.id + i;
+      const ps = open ? r.partners : r.partners.slice(0, 10);
+      return `<div class="radar-item">
+        <div class="radar-h"><a href="https://cordis.europa.eu/project/id/${esc(r.pid)}" target="_blank" rel="noopener noreferrer"><b>${esc(r.acronym)}</b></a>
+          <span class="hint">${esc(r.year)} · ${esc(r.topic)}${r.sameTopic ? " · same topic" : ""} · ${r.size} partners</span></div>
+        <div class="hint radar-t">${esc(r.title)}</div>
+        <div class="chips">${ps.map((p) => {
+          const k = isKnown(p); const onList = partnerNames.has(normName(p.name));
+          const why = k ? (k.nerc ? "Partner in our own projects" : "Partner in Turku UAS projects") + (k.projectNames?.length ? ": " + k.projectNames.join(", ") : "") : onList ? "On our partner list" : "";
+          return `<span class="tag pchip ${k || onList ? "known" : ""} ${p.coordinator ? "coord" : ""}" title="${esc([ORG_TYPE[p.type] || p.type, p.country, p.coordinator ? "coordinator" : "", why].filter(Boolean).join(" · "))}">${p.coordinator ? "★ " : ""}${esc(p.name.length > 42 ? p.name.slice(0, 40) + "…" : p.name)} <small>${esc(p.country)}</small></span>`;
+        }).join("")}${r.partners.length > 10 ? `<button class="linkbtn" data-rmore="${i}">${open ? "Show fewer" : `+${r.partners.length - 10} more`}</button>` : ""}</div>
+      </div>`;
+    }).join("")}
+    <p class="hint">★ coordinator · highlighted = an organisation you have worked with or have on your partner list.</p>
+  </section>`;
+}
 
 const IDEA_STATUS = [["raw", "Raw idea"], ["developing", "Developing"], ["ready", "Ready to apply"], ["parked", "Parked"]];
 const PIECE_KINDS = [["site", "Pilot site"], ["need", "Need or challenge"], ["resource", "Resource"], ["expertise", "Expertise"], ["partner", "Partner"], ["other", "Other"]];

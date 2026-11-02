@@ -150,6 +150,32 @@ export async function createFirebaseStore(config) {
       await F.setDoc(F.doc(db, "settings", "profile"), { ...p, updatedBy: store.user.name || store.user.email, updatedAt: F.serverTimestamp() });
     },
 
+    // ---- partner network (CORDIS, weekly) and the team's own project list ----
+    async loadNetwork() {
+      const snap = await F.getDocs(F.collection(db, "network"));
+      let projects = [], orgs = [], updatedAt = null;
+      snap.forEach((d) => {
+        const x = d.data();
+        if (d.id === "projects") { projects = x.items || []; updatedAt = x.updatedAt; } else if (d.id.startsWith("orgs-")) orgs = orgs.concat(x.items || []);
+      });
+      return { projects, orgs, updatedAt };
+    },
+    async loadRadar(callId) {
+      const s = await F.getDoc(F.doc(db, "radar", encodeId(callId)));
+      return s.exists() ? s.data().items || [] : [];
+    },
+    watchNetProjects(cb) {
+      return F.onSnapshot(F.collection(db, "netProjects"), (snap) => {
+        const out = []; snap.forEach((d) => out.push({ id: d.id, ...d.data() })); cb(out);
+      }, () => cb([]));
+    },
+    async saveNetProject(p) {
+      const { id, ...data } = p;
+      if (id) { await F.setDoc(F.doc(db, "netProjects", id), { ...data, updatedBy: store.user.email }, { merge: true }); return id; }
+      return (await F.addDoc(F.collection(db, "netProjects"), { ...data, createdBy: store.user.email })).id;
+    },
+    async deleteNetProject(id) { await F.deleteDoc(F.doc(db, "netProjects", id)); },
+
     // ---- idea bank (team only): ideas/{name in lower case}, pieces/{id} ----
     watchIdeas(cb) {
       return F.onSnapshot(F.collection(db, "ideas"), (snap) => {
@@ -210,7 +236,7 @@ const decodeId = (id) => id.replace(/∕/g, "/");
 /* ---------------- Demo (browser storage) ---------------- */
 
 export async function createDemoStore() {
-  const KEY = "rv-demo-en-v4";
+  const KEY = "rv-demo-en-v5";
   const base = window.RV_DEMO_DATA || (await (await fetch("demo-data.json")).json());
   const now = Date.now();
   const seed = {
@@ -244,6 +270,12 @@ export async function createDemoStore() {
       "PV-Factory pilot line": { name: "PV-Factory pilot line", status: "developing", scope: "international", funders: ["horizon", "cetp"], pieces: ["pc2"], description: "A pilot line at Turku UAS for testing new PV module production steps with Finnish SMEs, with students doing the test runs and quality measurements." },
       "Housing company PV + storage": { name: "Housing company PV + storage", status: "raw", scope: "national", funders: ["bf", "eura"], pieces: ["pc1"], description: "A pilot where a housing company shares rooftop PV and a battery between apartments, with vocational students doing the installation and monitoring." },
     },
+    netProjects: [
+      { id: "cordis-101123238", kind: "cordis", pid: "101123238", nerc: true },
+      { id: "cordis-101269394", kind: "cordis", pid: "101269394", nerc: true },
+      { id: "np1", kind: "manual", nerc: true, name: "Example Erasmus+ CoVE project (example)", programme: "Erasmus+", start: "2024", end: "2027",
+        partners: [{ name: "Example VET college (example)", country: "NL", city: "Utrecht", type: "HES" }, { name: "FUNDACION CIRCE CENTRO DE INVESTIGACION DE RECURSOS Y CONSUM", country: "ES", city: "Zaragoza", type: "REC" }] },
+    ],
     pieces: [
       { id: "pc1", kind: "site", title: "1960s terraced housing company in Turku (example)", description: "16 apartments, roof renovation planned for 2028; the board is interested in PV and a shared battery.", contact: "Board chair (example)", tags: ["PV", "battery", "housing"], broughtBy: "maija.meikalainen@turkuamk.fi" },
       { id: "pc2", kind: "resource", title: "Electroluminescence imaging set-up (example)", description: "Drone and lab EL/PL imaging for PV module inspection.", contact: "", tags: ["PV", "inspection"], broughtBy: "demo@turkuamk.fi" },
@@ -264,7 +296,8 @@ export async function createDemoStore() {
   st.ratings ||= structuredClone(seed.ratings);
   st.ideas ||= structuredClone(seed.ideas);
   st.pieces ||= structuredClone(seed.pieces);
-  const listeners = { pieces: new Set(), ideas: new Set(), ratings: new Set(), notes: new Set(), partners: new Set(), allow: new Set(), comments: new Map(), profile: new Set() };
+  st.netProjects ||= structuredClone(seed.netProjects);
+  const listeners = { netProjects: new Set(), pieces: new Set(), ideas: new Set(), ratings: new Set(), notes: new Set(), partners: new Set(), allow: new Set(), comments: new Map(), profile: new Set() };
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(st)); } catch { /* storage is optional */ } };
   const emit = (k) => {
     save();
@@ -309,6 +342,16 @@ export async function createDemoStore() {
     },
     async deleteIdea(name) { delete st.ideas[name]; save(); listeners.ideas.forEach((cb) => cb(structuredClone(st.ideas))); },
     watchPieces(cb) { return watch(listeners.pieces, cb, st.pieces); },
+    async loadNetwork() { const n = await demoNetwork(); return { projects: n.projects, orgs: n.orgs, updatedAt: n.updatedAt }; },
+    async loadRadar(callId) { return (await demoNetwork()).radar[callId] || []; },
+    watchNetProjects(cb) { return watch(listeners.netProjects, cb, st.netProjects); },
+    async saveNetProject(p) {
+      const id = p.id || "np" + Date.now();
+      const i = st.netProjects.findIndex((x) => x.id === id);
+      if (i >= 0) st.netProjects[i] = { ...st.netProjects[i], ...p, id }; else st.netProjects.push({ ...p, id });
+      save(); listeners.netProjects.forEach((cb) => cb(structuredClone(st.netProjects))); return id;
+    },
+    async deleteNetProject(id) { st.netProjects = st.netProjects.filter((x) => x.id !== id); save(); listeners.netProjects.forEach((cb) => cb(structuredClone(st.netProjects))); },
     async savePiece(p) {
       if (p.id) st.pieces = st.pieces.map((x) => (x.id === p.id ? { ...x, ...p } : x));
       else { p = { ...p, id: "pc" + Date.now(), broughtBy: store.user.email, createdAt: new Date().toISOString() }; st.pieces.push(p); }
@@ -374,6 +417,12 @@ export async function createDemoStore() {
     },
   };
   return store;
+}
+
+let _demoNet = null;
+async function demoNetwork() {
+  _demoNet ||= window.RV_DEMO_NETWORK || (await (await fetch("demo-network.json")).json());
+  return _demoNet;
 }
 
 // Fallback when Claude is not reachable: word overlap between the idea and each call line.

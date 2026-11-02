@@ -10,6 +10,9 @@ Data model:
 - texts/{callId}  {text, updatedAt}
     The full text of each call (as read from the funder's page), for Claude's analysis of a linked
     project idea. Written only when the text changes. ('/' in ids is stored as '∕'.)
+- network/projects, network/orgs-N, radar/{callId}
+    Written weekly by network.py from CORDIS: Turku UAS's EU projects and partners, and for each open
+    Horizon Europe call the most similar funded projects with their consortia.
 - settings/profile  {organisation, keywords: [{word, weight}], negative: [{word, weight}], updatedAt, updatedBy}
     The relevance profile, edited by admins in the app. Seeded from config.yaml on the first run.
 Team annotations (favourites, tags, comments, partners) live in their own collections,
@@ -72,6 +75,32 @@ class Store:
             batch = self.db.batch()
             for cid, text in items[i:i + 400]:
                 batch.set(self.db.collection("texts").document(cid.replace("/", "∕")), {"text": text[:20000], "updatedAt": now})
+            batch.commit()
+
+    def save_network(self, projects: list, orgs: list, radar: dict) -> None:
+        """network/projects, network/orgs-N (chunks under the document size limit) and radar/{callId}."""
+        now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        col = self.db.collection("network")
+        chunks, cur, size = [], [], 0
+        for o in orgs:
+            s = len(json.dumps(o, ensure_ascii=False).encode())
+            if cur and size + s > CHUNK_BYTES:
+                chunks.append(cur)
+                cur, size = [], 0
+            cur.append(o)
+            size += s
+        if cur:
+            chunks.append(cur)
+        batch = self.db.batch()
+        batch.set(col.document("projects"), {"items": projects, "orgParts": len(chunks), "updatedAt": now})
+        for i, ch in enumerate(chunks):
+            batch.set(col.document(f"orgs-{i}"), {"items": ch, "updatedAt": now})
+        batch.commit()
+        items = list(radar.items())
+        for i in range(0, len(items), 400):
+            batch = self.db.batch()
+            for cid, rows in items[i:i + 400]:
+                batch.set(self.db.collection("radar").document(cid.replace("/", "∕")), {"items": rows, "updatedAt": now})
             batch.commit()
 
     def load_feedback(self) -> dict:

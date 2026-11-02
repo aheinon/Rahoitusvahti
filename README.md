@@ -51,6 +51,14 @@ GitHub Actions (nightly)                 GitHub Pages (web/)
 - **Ideas** (team only): an idea bank of project ideas (raw → developing → ready to apply) and the pieces
   they could be built from: pilot sites, needs or challenges, resources such as equipment or data,
   expertise and partners. Any idea or piece can be sent to the idea search with *Find calls*.
+- **Network** (team only): every organisation Turku UAS has worked with in Horizon Europe and Horizon 2020
+  projects (CORDIS open data, updated weekly by `collector/network.py`), on a map and in a list, with
+  counts by country and type and a CSV download. Tick the projects NERC took part in to see *our*
+  partners; the rest of Turku UAS's partners form the outer ring. Projects outside CORDIS (Erasmus+,
+  Interreg, ERDF, Business Finland ...) are added by hand with their partners.
+- **Who won similar calls**: for every Horizon Europe call, the funded projects closest to it (same topic
+  in earlier rounds, or most similar by text) with their consortia. Organisations you have worked with or
+  have on the partner list are highlighted.
 - **Call details**: opening date and deadlines, identifier, type of action, region, Claude's relevance
   assessment and reason, link to the funder's page.
 - **Team notes** (shared by everyone): project idea, stage (Watching → Preparing → Submitted →
@@ -109,7 +117,11 @@ In Firestore: **Start collection** `allowlist` → Document ID = your email in l
 GitHub Pages publishes the page code publicly (on a free account the repo is public). That is fine:
 the calls, notes and comments live in Firestore, which only signed-in, allowlisted users can read.
 
-### 5. Idea search (Cloudflare Worker, free tier)
+### 5. Partner network (once)
+**Actions → Update partner network → Run workflow**. After that it runs every Monday. It downloads
+the CORDIS files (~90 MB), so a run takes a few minutes. Then mark NERC's own projects on the Network tab.
+
+### 6. Idea search (Cloudflare Worker, free tier)
 The browser must never hold the Claude API key, so idea search goes through a small worker in `worker/`.
 For each request it reads `allowlist/{email}` from Firestore **with the user's own sign-in token**; Firestore
 checks the token and the security rules, so only allowlisted users get answers. It can also enforce a

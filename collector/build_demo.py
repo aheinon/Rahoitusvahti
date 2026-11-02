@@ -193,8 +193,35 @@ def build():
     with open(out, "w", encoding="utf-8") as f:
         json.dump({"items": items, "meta": meta}, f, ensure_ascii=False, indent=1)
     print(f"{len(items)} calls -> {os.path.normpath(out)}")
+    build_network_demo()
     for it in sorted(items, key=lambda x: -x["relevance"])[:8]:
         print(f"  {it['relevance']:>3}  {it['title'][:80]}")
+
+
+def build_network_demo():
+    """web/demo-network.json from a sample of the real CORDIS data (5 Turku UAS projects, 2 Nov 2026)."""
+    here = os.path.join(os.path.dirname(__file__), "demo")
+    net = json.load(open(os.path.join(here, "network.json"), encoding="utf-8"))
+    tuas = "948193431"
+    projects = [{"pid": p[0], "acronym": p[1], "title": p[2].title() if p[2].isupper() else p[2], "topic": p[3], "start": p[4], "end": p[5],
+                 "programme": "Horizon Europe", "partners": 0, "tuasCoordinator": False} for p in net["projs"]]
+    orgs = []
+    for i, name, country, city, g, typ, ps in net["orgs"]:
+        if i == tuas:
+            continue
+        pids = [x.rstrip("*") for x in ps]
+        orgs.append({"id": i, "name": name, "country": country, "city": city.title(), "geo": g, "type": typ,
+                     "projects": pids, "coordinated": [x.rstrip("*") for x in ps if x.endswith("*")]})
+    for p in projects:
+        p["partners"] = sum(1 for o in orgs if p["pid"] in o["projects"])
+    radar_raw = json.load(open(os.path.join(here, "radar.json"), encoding="utf-8"))
+    radar = {cid: [{"pid": r[0], "acronym": r[1], "title": r[2], "topic": r[3], "year": r[4], "sameTopic": False, "score": 0.4,
+                    "size": len(r[5]), "partners": [{"id": o[0], "name": o[1], "country": o[2], "type": o[3], "coordinator": bool(o[4])} for o in r[5]]}
+                   for r in rows] for cid, rows in radar_raw.items()}
+    out = os.path.join(os.path.dirname(__file__), "..", "web", "demo-network.json")
+    with open(out, "w", encoding="utf-8") as f:
+        json.dump({"projects": projects, "orgs": orgs, "radar": radar, "updatedAt": "2026-11-02T04:41:00+00:00"}, f, ensure_ascii=False)
+    print(f"network demo: {len(projects)} projects, {len(orgs)} organisations, radar for {len(radar)} calls")
 
 
 if __name__ == "__main__":
