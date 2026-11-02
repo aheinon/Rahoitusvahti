@@ -551,3 +551,11 @@ button.tag.new:hover { filter: brightness(.94); }
 tr.click { cursor: pointer; }
 tr.click:hover { background: var(--hover); }
 @media (max-width: 640px) { .net-filters { grid-template-columns: 1fr; } }
+.close-only { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; margin: 0; }
+.closestar { color: var(--soon); margin-right: 4px; }
+.net-legend i.lg-close { display: inline-block; width: 12px; height: 12px; border-radius: 50%; background: var(--sun); box-shadow: 0 0 0 2px var(--ink); }
+.close-row td { background: var(--surface); }
+.close-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 4px 16px; margin: 6px 0 4px; }
+.close-list .check { display: flex; align-items: flex-start; gap: 8px; font-size: 14px; margin: 0; }
+.close-list input { width: auto; margin-top: 3px; flex: none; }
+.close-list small { color: var(--ink-3); display: block; }
