@@ -16,6 +16,51 @@ sources:
   interreg:
     enabled: true
     finland_only: false           # true = only calls where Finland is eligible
+  cetp:                           # Clean Energy Transition Partnership joint calls (Business Finland in Finland)
+    enabled: true
+  oph:                            # EDUFI (Opetushallitus): decentralised Erasmus+ actions and EDUFI grants
+    enabled: true
+    max_pages: 8
+    # kept when tagged with one of these and none of exclude_tags (titles mentioning Erasmus are always kept)
+    include_tags: [Erasmus+, Korkeakoulutus, Ammatillinen koulutus, Aikuiskoulutus, Jatkuva oppiminen, Kansainvälistyminen]
+    exclude_tags: [Luova Eurooppa, Euroopan solidaarisuusjoukot, "EU:n nuoriso-ohjelmat", Erasmus+ nuorisoalalle, Nuorisotyö, Perusopetus, Varhaiskasvatus, Kulttuuri, Urheilu]
+  va:                             # Haeavustuksia.fi state grants: ministries (YM, TEM, MMM, OKM), Jotpa,
+    enabled: true                 # elinvoimakeskus centres, regional councils, agencies
+    # organisations (abbreviation) left out: own source already, or nothing a UAS can apply for
+    exclude_organisations: [BF, SA, OPH, SES, KUVI, MV, STEA, THL, PLM, KELA, VK, KA, RVL, PSR, VARKE, ARA, STM, OM, UM]
+    # titles left out (regular expression, case-insensitive)
+    exclude_titles: "yksityisti?e|yksityistei|enskild|EMKVR|kalast|kalatalou|vesiviljel|porotalou|kolt|rakennetuista|maaseudun (hanke|yritys)tuet|yrityksen kehittämisavustu|yritysten kehittämisavustu|ravirado|liikun|urheil|museo|kirjasto|nuoriso|turvakoti|romutus|hissi|asunto|puolustusteollisuu|elokuva|taiteen|kulttuurin|rakennusperinnö|rauhoitettujen eläinten|saariston|järjestöille|riistanhoito|väliraportti"
+  maaseutu:                       # EU rural development (CAP): elinvoimakeskus and Leader selection periods
+    enabled: true
+    pages:
+      - region: Varsinais-Suomi
+        authority: Lounais-Suomen elinvoimakeskus
+        url: https://maaseutu.fi/lounais-suomi/varsinais-suomi/rahoitus-varsinais-suomessa/valintajaksot/
+    include_sections: "^(Hanketuet|Leader\\b)"   # business aid and farm investments are left out
+  saatiot:                        # Foundations: Claude reads each page and picks out the next application period.
+    enabled: true                 # Add or remove foundations here. A page that cannot be read is skipped.
+    foundations:
+      - name: Maj ja Tor Nesslingin säätiö
+        url: https://nessling.fi/en/open-calls/
+        note: Environmental research and its use; personal grants and implementation project grants
+      - name: Suomen Kulttuurirahasto, Varsinais-Suomen rahasto
+        url: https://www.skr.fi/en/regional-funds/varsinais-suomi-regional-fund/varsinais-suomi-grants
+        note: Regional fund for science, art and culture in Varsinais-Suomi; individuals and working groups
+      - name: Koneen Säätiö
+        url: https://koneensaatio.fi/
+        note: Research, art and society; annual call in autumn; individuals and research groups
+      - name: Tekniikan edistämissäätiö (TES)
+        url: https://www.tekniikanedistamissaatio.fi/
+        note: Technology research; personal grants for researchers
+      - name: Fortumin ja Nesteen säätiö
+        url: https://www.fortumandnestefoundation.fi/
+        note: Energy and environmental research; personal grants
+      - name: Emil Aaltosen Säätiö
+        url: https://emilaaltonen.fi/
+        note: Research grants in all fields; individuals and research groups
+      - name: Teknologiateollisuuden 100-vuotissäätiö
+        url: https://teknologiateollisuus.fi/fi/teknologiateollisuuden-100-vuotissaatio
+        note: Technology research and education; calls for universities and research organisations
 
 # Relevance profile: Claude's description of the organisation and the weighted keywords.
 # Used only to create the profile on the first run. After that, admins edit it in the app
@@ -75,5 +120,7 @@ ai:
   # Minimum keyword score for EU topics to be scored and summarised. 0 = every topic gets a
   # summary (about 365 topics on the first run); 1 skips topics with no keyword hits.
   eu_min_keyword_score: 0
+  # Number of the team's latest "Is this relevant for us?" answers shown to Claude as examples
+  team_examples: 12
 
 retention_days_after_close: 60   # how long closed calls stay in the list

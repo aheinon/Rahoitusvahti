@@ -35,6 +35,8 @@ class Call:
     call_id: str = ""            # the funder's own call identifier
     action_type: str = ""        # e.g. "HORIZON Innovation Actions"
     auto_tags: list = field(default_factory=list)
+    deadline_time: str = ""      # closing time of the next deadline, e.g. "17:00 Brussels time"
+    text_hash: str = ""          # optional: hash of the page text, so a changed page is assessed again
     detail_text: str = ""        # longer text for AI scoring (not stored)
 
     @property
@@ -45,6 +47,8 @@ class Call:
 
     def content_hash(self) -> str:
         raw = "|".join([self.title, self.summary, ",".join(self.deadlines), self.status, self.opens or ""])
+        if self.text_hash:
+            raw += "|" + self.text_hash
         return hashlib.sha1(raw.encode("utf-8")).hexdigest()[:12]
 
     def to_record(self) -> dict:
@@ -165,6 +169,32 @@ def iso_from_any(s: str) -> Optional[str]:
         return datetime.fromisoformat(s[:10]).date().isoformat()
     except ValueError:
         return None
+
+
+_TIME = re.compile(r"(?:\bklo\.?\s*|\bat\s*)(\d{1,2})[:.](\d{2})\b|\b(\d{1,2}):(\d{2})\b")
+
+
+def parse_time(text: str) -> str:
+    """'... klo 16.15' / '14:00 (CEST)' -> '16:15'. Dates such as 22.10.2026 are not times."""
+    m = _TIME.search(text or "")
+    if not m:
+        return ""
+    h, mi = (m.group(1), m.group(2)) if m.group(1) else (m.group(3), m.group(4))
+    return f"{int(h):02d}:{mi}" if int(h) < 24 else ""
+
+
+def page_text(html_doc: str, limit: int = 6000) -> str:
+    """Readable text of a web page: main content without menus, scripts and footers."""
+    from bs4 import BeautifulSoup
+    soup = BeautifulSoup(html_doc, "html.parser")
+    for t in soup(["script", "style", "noscript", "nav", "header", "footer", "form", "svg"]):
+        t.decompose()
+    root = soup.find("main") or soup.find("article") or soup.body or soup
+    return clean_text(root.get_text(" "))[:limit]
+
+
+def short_hash(s: str) -> str:
+    return hashlib.sha1((s or "").encode("utf-8")).hexdigest()[:12]
 
 
 def log(msg: str) -> None:

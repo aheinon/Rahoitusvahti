@@ -103,6 +103,52 @@ SUMMARY_EXAMPLES = {
 }
 
 
+# Sources added on 2 Nov 2026 (as seen that day)
+NEW = [
+    Call(id="cetp:joint-call-2026", source="cetp", title="CETPartnership Joint Call 2026", url="https://cetpartnership.eu/calls/joint-call-2026/",
+         funder="Clean Energy Transition Partnership", programme="CETPartnership (Business Finland in Finland)", status="open",
+         opens="2026-06-08", deadlines=["2026-10-08", "2027-03-11"], deadline_time="14:00 CET", call_id="CETP JC2026",
+         action_type="Transnational joint call", auto_tags=["clean energy", "partnership call"],
+         summary="CETPartnership's fifth annual joint call with 11 call modules, from energy system resilience and renewables to hydrogen, stationary batteries, heating and cooling and integrated regional energy systems. The next deadline is for full proposals, by invitation after the pre-proposal stage."),
+    Call(id="va:va-jotpa-2026-5", source="va", title="Hankeavustus työn ohessa opiskelun vahvistamiseksi 4/2026", url="https://www.haeavustuksia.fi/fi/haku/va-jotpa-2026-5",
+         funder="Jotpa (Service Centre for Continuous Learning and Employment)", programme="Jotpa", status="open", opens="2026-10-30",
+         deadlines=["2027-04-30"], deadline_time="23:59 Finnish time", call_id="va-jotpa-2026-5",
+         summary="Project grants to develop how work and studies fit together and to ease the shortage of skilled labour in sectors with labour shortages."),
+    Call(id="va:va-mmm-2026-24", source="va", title="Erityisavustus LIFE-hankkeille 2027", url="https://www.haeavustuksia.fi/fi/haku/va-mmm-2026-24",
+         funder="Ministry of Agriculture and Forestry", programme="State grant", status="open", opens="2026-10-23", deadlines=["2026-11-16"],
+         deadline_time="16:15 Finnish time", call_id="va-mmm-2026-24", auto_tags=["MMM"],
+         summary="National co-funding for LIFE projects in the ministry's sector."),
+    Call(id="va:va-ita-2026-46", source="va", title="Avustus ravinteiden kierrätyksen edistämiseen", url="https://www.haeavustuksia.fi/fi/haku/va-ita-2026-46",
+         funder="Economic Development Centre of Eastern Finland", programme="State grant", status="open", opens="2026-09-30", deadlines=["2026-11-30"],
+         deadline_time="16:15 Finnish time", call_id="va-ita-2026-46", auto_tags=["ITA"],
+         summary="Grants for projects that promote nutrient recycling (Ministry of the Environment's programme, handled nationally by the Eastern Finland centre)."),
+    Call(id="va:va-ulii-2023-3", source="va", title="Interreg-ohjelmien kansallisen vastinrahoituksen haku", url="https://www.haeavustuksia.fi/fi/haku/va-ulii-2023-3",
+         funder="Helsinki-Uusimaa Regional Council", programme="State grant", status="open", opens="2022-06-16", deadlines=["2027-12-31"],
+         call_id="va-ulii-2023-3", auto_tags=["ULII"], summary="National co-funding for Finnish partners in Interreg projects."),
+    Call(id="maaseutu:demo-lou", source="maaseutu", title="Maaseudun kehittämishankkeet – Lounais-Suomen elinvoimakeskus",
+         url="https://maaseutu.fi/lounais-suomi/varsinais-suomi/rahoitus-varsinais-suomessa/valintajaksot/", funder="Lounais-Suomen elinvoimakeskus",
+         programme="Rural development (CAP)", continuous=True, region="Varsinais-Suomi", auto_tags=["CAP"],
+         deadline_text="Rolling; next selection periods not published yet",
+         summary="Applications are open all the time and decided after each selection period."),
+    Call(id="maaseutu:demo-varsinhyva", source="maaseutu", title="Leader Varsin Hyvä – maaseudun kehittämishankkeet",
+         url="https://maaseutu.fi/lounais-suomi/varsinais-suomi/rahoitus-varsinais-suomessa/valintajaksot/", funder="Leader Varsin Hyvä",
+         programme="Rural development (CAP)", continuous=True, deadlines=["2026-12-31"], region="Varsinais-Suomi", auto_tags=["Leader"],
+         summary="Applications are open all the time and decided after each selection period (next one ends 2026-12-31). Leader Varsin Hyvä works in Kaarina, Lieto, Masku, Naantali, Nousiainen, Paimio, Raisio, Rusko, Sauvo, Taivassalo and Turku."),
+    Call(id="maaseutu:demo-ykkosakseli", source="maaseutu", title="Leader Ykkösakseli – maaseudun kehittämishankkeet",
+         url="https://maaseutu.fi/lounais-suomi/varsinais-suomi/rahoitus-varsinais-suomessa/valintajaksot/", funder="Leader Ykkösakseli",
+         programme="Rural development (CAP)", continuous=True, deadlines=["2026-11-08", "2027-01-17"], region="Varsinais-Suomi", auto_tags=["Leader"],
+         summary="Applications are open all the time and decided after each selection period (next one ends 2026-11-08). Leader Ykkösakseli works in Salo, Karkkila, Lohja and Vihti."),
+    Call(id="saatio:maj-ja-tor-nesslingin-saatio", source="saatiot", title="Maj ja Tor Nesslingin säätiö: grants", url="https://nessling.fi/en/open-calls/",
+         funder="Maj ja Tor Nesslingin säätiö", programme="Foundation", deadline_text="See the foundation's page", auto_tags=["foundation"],
+         summary="Environmental research and its use; personal grants and implementation project grants"),
+    Call(id="saatio:skr-varsinais-suomen-rahasto", source="saatiot", title="Suomen Kulttuurirahasto, Varsinais-Suomen rahasto: grants",
+         url="https://www.skr.fi/en/regional-funds/varsinais-suomi-regional-fund/varsinais-suomi-grants", funder="Suomen Kulttuurirahasto, Varsinais-Suomen rahasto",
+         programme="Foundation", deadline_text="See the foundation's page", auto_tags=["foundation"],
+         summary="Regional fund for science, art and culture in Varsinais-Suomi; individuals and working groups"),
+]
+NEW_IDS = {c.id for c in NEW}
+
+
 def build():
     with open(os.path.join(os.path.dirname(__file__), "config.yaml"), encoding="utf-8") as f:
         cfg = yaml.safe_load(f)
@@ -130,18 +176,19 @@ def build():
                           title=t, url=url, funder="Interreg", programme=prog, deadlines=[dl], region=ctry,
                           auto_tags=th, summary=f"Eligible countries: {ctry}"))
 
+    calls += NEW
     os.environ.pop("ANTHROPIC_API_KEY", None)
     scorer = AiScorer({}, cfg["profile"])
     items = main.merge(calls, {}, set(), scorer, cfg["profile"], 60)
     for it in items:
-        it["firstSeen"] = "2026-10-27" if it["source"] in ("eu", "aka") and it.get("opens", "") and it["opens"] >= "2026-10-13" else "2026-10-01"
+        it["firstSeen"] = "2026-11-02" if it["id"] in NEW_IDS else "2026-10-27" if it["source"] in ("eu", "aka") and it.get("opens", "") and it["opens"] >= "2026-10-13" else "2026-10-01"
         if it["id"] in SUMMARY_EXAMPLES:
             it["aiSummary"] = SUMMARY_EXAMPLES[it["id"]]
         if it["id"] in AI_EXAMPLES:
             s, r, tags, el = AI_EXAMPLES[it["id"]]
             it.update(aiScore=s, aiReason=r, aiTags=tags, aiEligible=el, relevance=s)
-    meta = {"counts": {s: sum(1 for i in items if i["source"] == s) for s in ("eu", "bf", "aka", "eura", "interreg")},
-            "errors": {}, "total": len(items), "lastRun": "2026-10-29T03:17:00+00:00", "demo": True}
+    meta = {"counts": {s: sum(1 for i in items if i["source"] == s) for s in ("eu", "bf", "aka", "eura", "interreg", "cetp", "va", "maaseutu", "saatiot")},
+            "errors": {}, "total": len(items), "lastRun": "2026-11-02T03:17:00+00:00", "demo": True}
     out = os.path.join(os.path.dirname(__file__), "..", "web", "demo-data.json")
     with open(out, "w", encoding="utf-8") as f:
         json.dump({"items": items, "meta": meta}, f, ensure_ascii=False, indent=1)

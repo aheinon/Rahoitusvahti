@@ -1,7 +1,7 @@
 # Rahoitusvahti
 
 A funding call tracker for NERC (Turku UAS). It collects open and upcoming research and innovation
-calls from five sources every night. The team can favourite calls, link them to project ideas,
+calls from ten sources every night. The team can favourite calls, link them to project ideas,
 comment, tag, list the people involved and potential partners, and ask Claude which calls fit a new
 idea. Only addresses on the allowlist can sign in.
 
@@ -13,6 +13,11 @@ GitHub Actions (nightly)                 GitHub Pages (web/)
    ├─ Research Council of Finland (HTML)     ▼
    ├─ EURA 2021: ERDF/ESF+/JTF (JSON)     Firestore
    ├─ Interreg (interreg.eu, Playwright)    index/calls-*   ← written by the collector
+   ├─ CETPartnership (HTML)
+   ├─ EDUFI / Erasmus+ (oph.fi, HTML)
+   ├─ Haeavustuksia.fi: ministries, Jotpa, elinvoimakeskus (JSON)
+   ├─ Maaseutu.fi: CAP + Leader selection periods (HTML)
+   ├─ Foundations (pages read by Claude)
    └─ scoring: keywords + Claude            notes, comments, partners, users  ← written by the team
         └──────── writes ───────────────▶   allowlist  ← who may sign in
                                               ▲
@@ -22,8 +27,15 @@ GitHub Actions (nightly)                 GitHub Pages (web/)
 ## Features
 
 - **Calls**: deadline timeline (6, 12 or 18 months ahead), search, filters (funder, status, deadline
-  window up to 18 months, relevance, favourites, "calls I am involved in", project idea, tag), sort by
-  deadline, relevance or newest. Horizon Europe topics are listed as soon as the work programme puts
+  window up to 18 months, relevance, favourites, "calls I am involved in", "new this week", project idea,
+  tag), sort by deadline, Claude's relevance, team rating or newest.
+- **New this week**: calls that appeared in the last 7 days carry a *New* tag. Clicking it (or
+  *N new this week* above the list) shows just those calls.
+- **Is this relevant for us?** Everyone can answer 👍 / 🤷 / 👎 with an optional reason in the call
+  details. The answers show on the list, sort the list (*Team rating*), are given to Claude as examples
+  on the next nightly run (`ai.team_examples`), and the Profile tab shows how often Claude's score agrees
+  with the team and where they disagree most. Pipeline stages count as answers too (Preparing,
+  Submitted, Funded = relevant; Not applying = not relevant). Horizon Europe topics are listed as soon as the work programme puts
   them in the portal as *forthcoming*, so calls closing over a year from now are included.
 - **Summaries**: Claude writes a 2-3 sentence English summary of each call (what it funds, who can take
   part, size of funding) from the call text. Shown in the call details and, with *Show summaries*, in the list.
@@ -45,7 +57,8 @@ GitHub Actions (nightly)                 GitHub Pages (web/)
   Interreg calls where Finland is not eligible, calls Claude marked not eligible, and calls the team
   marked *Not applying*. Idea search still considers all of them.
 - **Funder filter** grouped into *EU and international* (Horizon Europe, Erasmus+, LIFE, Digital Europe,
-  other EU programmes, Interreg) and *Finland* (Business Finland, Research Council of Finland, EURA).
+  other EU programmes, Interreg, CETPartnership) and *Finland* (Business Finland, Research Council of
+  Finland, EURA, Jotpa, ministries and agencies, EDUFI grants, rural development, foundations).
 - **Users** (admin): the allowlist and roles. External partners can be invited with the *Partner* role:
   they see the calls and can comment, but cannot change team notes.
 - **Add a call**: for foundations, ministries and other funders the collector does not follow.
@@ -156,10 +169,18 @@ previous data is kept, and the error shows in the Actions log and at the bottom 
 | Research Council of Finland | calls page + call pages (HTML) | includes calls "in preparation" |
 | EURA 2021 | JSON embedded in the notices page and each notice page | business grants (YRTU) excluded by default |
 | Interreg | interreg.eu/calls-for-projects (rendered in a browser) | all Interreg programmes, Finland eligibility as a tag |
+| CETPartnership | cetpartnership.eu/calls (HTML) | open joint calls with their calendar and call modules; Business Finland funds Finnish partners |
+| EDUFI (Opetushallitus) | oph.fi/fi/rahoitushaut (HTML) | decentralised Erasmus+ (KA2 partnerships etc.) and EDUFI grants for higher education, VET and adult learning (checked 2 Nov 2026) |
+| Haeavustuksia.fi | the State Treasury grant service's own search (JSON) | ministries (YM, TEM, MMM, OKM), Jotpa, elinvoimakeskus centres, regional councils, agencies; organisations and titles in `config.yaml` are left out (checked 2 Nov 2026) |
+| Maaseutu.fi | the region's *valintajaksot* page (HTML) | rural development projects: elinvoimakeskus and Leader groups, next selection period ends as deadlines (checked 2 Nov 2026) |
+| Foundations | each foundation's page (list in `config.yaml`) | Claude reads the page and picks out the next application period; check the list once, as foundations move their pages |
+
+A source that suddenly returns no calls is treated as broken: its previous calls are kept and the
+error is shown at the bottom of the app.
 
 ## Ideas for later
 
 - weekly digest of new relevant calls to email or Teams (GitHub Action + webhook)
 - reminders to @mentioned people and for favourite deadlines
-- more sources: Jotpa, Finnish National Agency for Education, Ministry of the Environment, foundations
+- more sources: Nordic Energy Research, NordForsk, Business Finland partnership calls listed only on partners' sites
 - forecasts of upcoming calls from last year's timing

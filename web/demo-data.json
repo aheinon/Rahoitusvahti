@@ -1,41 +1,6 @@
 {
  "items": [
   {
-   "id": "eura:bbffeaa0-a0da-493e-9793-fb2f6e16a0b3",
-   "source": "eura",
-   "title": "Länsi-Suomen alueen et. 5.1. Turvaverkkoja nuorten tulevaisuuteen kehittämishankehaku",
-   "url": "https://eura2021.fi/hakuilmoitukset/hakuilmoitus/bbffeaa0-a0da-493e-9793-fb2f6e16a0b3/",
-   "funder": "Keski-Suomen elinvoimakeskus",
-   "programme": "ESF+",
-   "status": "open",
-   "opens": "2026-08-03",
-   "deadlines": [
-    "2026-10-30"
-   ],
-   "deadline_text": "",
-   "continuous": false,
-   "summary": "ESF+ call by Keski-Suomen elinvoimakeskus.",
-   "region": "Varsinais-Suomi, Satakunta, Pirkanmaa, Keski-Suomi, Pohjanmaa, Etelä-Pohjanmaa, Keski-Pohjanmaa",
-   "call_id": "KESEVK-300",
-   "action_type": "",
-   "auto_tags": [
-    "ESF+"
-   ],
-   "deadline": "2026-10-30",
-   "hash": "79d5577e927d",
-   "firstSeen": "2026-10-01",
-   "lastSeen": "2026-10-30",
-   "kwScore": 3,
-   "relevance": 22,
-   "aiScore": 22,
-   "aiReason": "Youth inclusion call covering Southwest Finland; no energy angle, mainly for education and guidance projects.",
-   "aiTags": [
-    "youth",
-    "ESF+"
-   ],
-   "aiEligible": "yes"
-  },
-  {
    "id": "aka:nfrfnordforsk-haku-2026-international-joint-initiative-for-research-harnessing-disruptive-technologies-to-address-global-challenges",
    "source": "aka",
    "title": "NFRF/NordForsk-haku: 2026 International Joint Initiative for Research Harnessing Disruptive Technologies",
@@ -56,10 +21,12 @@
    "auto_tags": [
     "International calls"
    ],
+   "deadline_time": "",
+   "text_hash": "",
    "deadline": "2026-11-03",
    "hash": "c6ce103b9880",
    "firstSeen": "2026-10-01",
-   "lastSeen": "2026-10-30",
+   "lastSeen": "2026-11-02",
    "kwScore": 0,
    "relevance": 0
   },
@@ -84,10 +51,12 @@
    "auto_tags": [
     "ERDF"
    ],
+   "deadline_time": "",
+   "text_hash": "",
    "deadline": "2026-11-05",
    "hash": "7b2512ef3f60",
    "firstSeen": "2026-10-01",
-   "lastSeen": "2026-10-30",
+   "lastSeen": "2026-11-02",
    "kwScore": 0,
    "relevance": 0
   },
@@ -112,12 +81,45 @@
    "auto_tags": [
     "ERDF"
    ],
+   "deadline_time": "",
+   "text_hash": "",
    "deadline": "2026-11-06",
    "hash": "0f5016610cf1",
    "firstSeen": "2026-10-01",
-   "lastSeen": "2026-10-30",
+   "lastSeen": "2026-11-02",
    "kwScore": 0,
    "relevance": 0
+  },
+  {
+   "id": "maaseutu:demo-ykkosakseli",
+   "source": "maaseutu",
+   "title": "Leader Ykkösakseli – maaseudun kehittämishankkeet",
+   "url": "https://maaseutu.fi/lounais-suomi/varsinais-suomi/rahoitus-varsinais-suomessa/valintajaksot/",
+   "funder": "Leader Ykkösakseli",
+   "programme": "Rural development (CAP)",
+   "status": "open",
+   "opens": null,
+   "deadlines": [
+    "2026-11-08",
+    "2027-01-17"
+   ],
+   "deadline_text": "",
+   "continuous": true,
+   "summary": "Applications are open all the time and decided after each selection period (next one ends 2026-11-08). Leader Ykkösakseli works in Salo, Karkkila, Lohja and Vihti.",
+   "region": "Varsinais-Suomi",
+   "call_id": "",
+   "action_type": "",
+   "auto_tags": [
+    "Leader"
+   ],
+   "deadline_time": "",
+   "text_hash": "",
+   "deadline": "2026-11-08",
+   "hash": "dd43b50c93e0",
+   "firstSeen": "2026-11-02",
+   "lastSeen": "2026-11-02",
+   "kwScore": 3,
+   "relevance": 24
   },
   {
    "id": "aka:2027-akatemiahankkeet-kaikki-tutkimusalat",
@@ -140,10 +142,12 @@
    "auto_tags": [
     "For research teams"
    ],
+   "deadline_time": "",
+   "text_hash": "",
    "deadline": "2026-11-11",
    "hash": "93e279de1473",
    "firstSeen": "2026-10-27",
-   "lastSeen": "2026-10-30",
+   "lastSeen": "2026-11-02",
    "kwScore": 0,
    "relevance": 0,
    "aiSummary": "Four-year research projects in all fields, with a funding period from 1 Sep 2027 to 31 Aug 2031. Up to EUR 1 million for a single project and up to EUR 1.5 million for a consortium. The aim is high-quality, ground-breaking research that also strengthens the team's expertise."
@@ -169,10 +173,12 @@
    "auto_tags": [
     "For researchers"
    ],
+   "deadline_time": "",
+   "text_hash": "",
    "deadline": "2026-11-11",
    "hash": "b8b465a0ef72",
    "firstSeen": "2026-10-27",
-   "lastSeen": "2026-10-30",
+   "lastSeen": "2026-11-02",
    "kwScore": 0,
    "relevance": 0
   },
@@ -197,10 +203,12 @@
    "auto_tags": [
     "International calls"
    ],
+   "deadline_time": "",
+   "text_hash": "",
    "deadline": "2026-11-12",
    "hash": "f99ef3759651",
    "firstSeen": "2026-10-27",
-   "lastSeen": "2026-10-30",
+   "lastSeen": "2026-11-02",
    "kwScore": 0,
    "relevance": 0
   },
@@ -226,10 +234,42 @@
     "Greener Europe",
     "Smarter Europe"
    ],
+   "deadline_time": "",
+   "text_hash": "",
    "deadline": "2026-11-13",
    "hash": "d31f29f1d970",
    "firstSeen": "2026-10-01",
-   "lastSeen": "2026-10-30",
+   "lastSeen": "2026-11-02",
+   "kwScore": 0,
+   "relevance": 0
+  },
+  {
+   "id": "va:va-mmm-2026-24",
+   "source": "va",
+   "title": "Erityisavustus LIFE-hankkeille 2027",
+   "url": "https://www.haeavustuksia.fi/fi/haku/va-mmm-2026-24",
+   "funder": "Ministry of Agriculture and Forestry",
+   "programme": "State grant",
+   "status": "open",
+   "opens": "2026-10-23",
+   "deadlines": [
+    "2026-11-16"
+   ],
+   "deadline_text": "",
+   "continuous": false,
+   "summary": "National co-funding for LIFE projects in the ministry's sector.",
+   "region": "",
+   "call_id": "va-mmm-2026-24",
+   "action_type": "",
+   "auto_tags": [
+    "MMM"
+   ],
+   "deadline_time": "16:15 Finnish time",
+   "text_hash": "",
+   "deadline": "2026-11-16",
+   "hash": "1bf74a799fb2",
+   "firstSeen": "2026-11-02",
+   "lastSeen": "2026-11-02",
    "kwScore": 0,
    "relevance": 0
   },
@@ -254,10 +294,12 @@
    "auto_tags": [
     "ESF+"
    ],
+   "deadline_time": "",
+   "text_hash": "",
    "deadline": "2026-11-16",
    "hash": "fe613252a657",
    "firstSeen": "2026-10-01",
-   "lastSeen": "2026-10-30",
+   "lastSeen": "2026-11-02",
    "kwScore": 0,
    "relevance": 0,
    "aiSummary": "National ESF+ call on continuous learning, prepared under the Ministry of Education and Culture and funded through the Economic Development Centre of Northern Finland. About EUR 4 million of ESF+ funding is reserved for the call."
@@ -281,10 +323,12 @@
    "call_id": "",
    "action_type": "",
    "auto_tags": [],
+   "deadline_time": "",
+   "text_hash": "",
    "deadline": "2026-11-17",
    "hash": "b0ec8e633917",
    "firstSeen": "2026-10-01",
-   "lastSeen": "2026-10-30",
+   "lastSeen": "2026-11-02",
    "kwScore": 0,
    "relevance": 0,
    "aiSummary": "Driving Urban Transitions partnership call for international projects that speed up the shift to climate-neutral, climate-resilient cities. Two stages: pre-proposals to the DUT portal by 17 Nov 2026, then invited full proposals by 15 Apr 2027 to both DUT and Business Finland."
@@ -310,10 +354,12 @@
    "auto_tags": [
     "For research teams"
    ],
+   "deadline_time": "",
+   "text_hash": "",
    "deadline": "2026-11-18",
    "hash": "74deb5cd5cf9",
    "firstSeen": "2026-10-27",
-   "lastSeen": "2026-10-30",
+   "lastSeen": "2026-11-02",
    "kwScore": 0,
    "relevance": 0
   },
@@ -336,10 +382,12 @@
    "call_id": "HORIZON-CL6-2026-04-GOVERNANCE",
    "action_type": "HORIZON Programme Cofund Actions",
    "auto_tags": [],
+   "deadline_time": "",
+   "text_hash": "",
    "deadline": "2026-11-26",
    "hash": "fe7ea7cfe39b",
    "firstSeen": "2026-10-01",
-   "lastSeen": "2026-10-30",
+   "lastSeen": "2026-11-02",
    "kwScore": 0,
    "relevance": 0
   },
@@ -364,10 +412,42 @@
    "auto_tags": [
     "JTF"
    ],
+   "deadline_time": "",
+   "text_hash": "",
    "deadline": "2026-11-27",
    "hash": "5d99095c30fe",
    "firstSeen": "2026-10-01",
-   "lastSeen": "2026-10-30",
+   "lastSeen": "2026-11-02",
+   "kwScore": 0,
+   "relevance": 0
+  },
+  {
+   "id": "va:va-ita-2026-46",
+   "source": "va",
+   "title": "Avustus ravinteiden kierrätyksen edistämiseen",
+   "url": "https://www.haeavustuksia.fi/fi/haku/va-ita-2026-46",
+   "funder": "Economic Development Centre of Eastern Finland",
+   "programme": "State grant",
+   "status": "open",
+   "opens": "2026-09-30",
+   "deadlines": [
+    "2026-11-30"
+   ],
+   "deadline_text": "",
+   "continuous": false,
+   "summary": "Grants for projects that promote nutrient recycling (Ministry of the Environment's programme, handled nationally by the Eastern Finland centre).",
+   "region": "",
+   "call_id": "va-ita-2026-46",
+   "action_type": "",
+   "auto_tags": [
+    "ITA"
+   ],
+   "deadline_time": "16:15 Finnish time",
+   "text_hash": "",
+   "deadline": "2026-11-30",
+   "hash": "43cc451cd663",
+   "firstSeen": "2026-11-02",
+   "lastSeen": "2026-11-02",
    "kwScore": 0,
    "relevance": 0
   },
@@ -392,10 +472,12 @@
    "auto_tags": [
     "ERDF"
    ],
+   "deadline_time": "",
+   "text_hash": "",
    "deadline": "2026-11-30",
    "hash": "1e9b01f5cde9",
    "firstSeen": "2026-10-01",
-   "lastSeen": "2026-10-30",
+   "lastSeen": "2026-11-02",
    "kwScore": 0,
    "relevance": 0
   },
@@ -420,10 +502,12 @@
    "auto_tags": [
     "ESF+"
    ],
+   "deadline_time": "",
+   "text_hash": "",
    "deadline": "2026-11-30",
    "hash": "b91111e3111b",
    "firstSeen": "2026-10-01",
-   "lastSeen": "2026-10-30",
+   "lastSeen": "2026-11-02",
    "kwScore": 2,
    "relevance": 16
   },
@@ -446,10 +530,12 @@
    "call_id": "HORIZON-CL5-2026-11-D3",
    "action_type": "HORIZON Innovation Actions",
    "auto_tags": [],
+   "deadline_time": "",
+   "text_hash": "",
    "deadline": "2026-12-01",
    "hash": "9ca38417b0cc",
    "firstSeen": "2026-10-01",
-   "lastSeen": "2026-10-30",
+   "lastSeen": "2026-11-02",
    "kwScore": 2,
    "relevance": 16
   },
@@ -474,10 +560,12 @@
    "auto_tags": [
     "International calls"
    ],
+   "deadline_time": "",
+   "text_hash": "",
    "deadline": "2026-12-02",
    "hash": "6e521e665455",
    "firstSeen": "2026-10-01",
-   "lastSeen": "2026-10-30",
+   "lastSeen": "2026-11-02",
    "kwScore": 0,
    "relevance": 0
   },
@@ -502,10 +590,12 @@
    "auto_tags": [
     "International calls"
    ],
+   "deadline_time": "",
+   "text_hash": "",
    "deadline": "2026-12-02",
    "hash": "e1df3cc0421a",
    "firstSeen": "2026-10-01",
-   "lastSeen": "2026-10-30",
+   "lastSeen": "2026-11-02",
    "kwScore": 0,
    "relevance": 0
   },
@@ -530,10 +620,12 @@
    "auto_tags": [
     "Better Connected Europe"
    ],
+   "deadline_time": "",
+   "text_hash": "",
    "deadline": "2026-12-10",
    "hash": "3f8979087ed5",
    "firstSeen": "2026-10-01",
-   "lastSeen": "2026-10-30",
+   "lastSeen": "2026-11-02",
    "kwScore": 0,
    "relevance": 0
   },
@@ -558,10 +650,12 @@
    "auto_tags": [
     "ERDF"
    ],
+   "deadline_time": "",
+   "text_hash": "",
    "deadline": "2026-12-15",
    "hash": "04ed2b7957a5",
    "firstSeen": "2026-10-01",
-   "lastSeen": "2026-10-30",
+   "lastSeen": "2026-11-02",
    "kwScore": 0,
    "relevance": 0
   },
@@ -586,10 +680,12 @@
    "auto_tags": [
     "Strategic research"
    ],
+   "deadline_time": "",
+   "text_hash": "",
    "deadline": "2026-12-15",
    "hash": "31b89d9e6a11",
    "firstSeen": "2026-10-27",
-   "lastSeen": "2026-10-30",
+   "lastSeen": "2026-11-02",
    "kwScore": 0,
    "relevance": 0
   },
@@ -614,12 +710,44 @@
    "auto_tags": [
     "Strategic research"
    ],
+   "deadline_time": "",
+   "text_hash": "",
    "deadline": "2026-12-15",
    "hash": "dca50c9cab9c",
    "firstSeen": "2026-10-27",
-   "lastSeen": "2026-10-30",
+   "lastSeen": "2026-11-02",
    "kwScore": 0,
    "relevance": 0
+  },
+  {
+   "id": "maaseutu:demo-varsinhyva",
+   "source": "maaseutu",
+   "title": "Leader Varsin Hyvä – maaseudun kehittämishankkeet",
+   "url": "https://maaseutu.fi/lounais-suomi/varsinais-suomi/rahoitus-varsinais-suomessa/valintajaksot/",
+   "funder": "Leader Varsin Hyvä",
+   "programme": "Rural development (CAP)",
+   "status": "open",
+   "opens": null,
+   "deadlines": [
+    "2026-12-31"
+   ],
+   "deadline_text": "",
+   "continuous": true,
+   "summary": "Applications are open all the time and decided after each selection period (next one ends 2026-12-31). Leader Varsin Hyvä works in Kaarina, Lieto, Masku, Naantali, Nousiainen, Paimio, Raisio, Rusko, Sauvo, Taivassalo and Turku.",
+   "region": "Varsinais-Suomi",
+   "call_id": "",
+   "action_type": "",
+   "auto_tags": [
+    "Leader"
+   ],
+   "deadline_time": "",
+   "text_hash": "",
+   "deadline": "2026-12-31",
+   "hash": "8a482a772b71",
+   "firstSeen": "2026-11-02",
+   "lastSeen": "2026-11-02",
+   "kwScore": 3,
+   "relevance": 24
   },
   {
    "id": "eu:HORIZON-CL4-2027-02-MAT-PROD-32-two-stage",
@@ -641,10 +769,12 @@
    "call_id": "HORIZON-CL4-2027-02-MAT-PROD-32-two",
    "action_type": "HORIZON Innovation Actions",
    "auto_tags": [],
+   "deadline_time": "",
+   "text_hash": "",
    "deadline": "2027-02-02",
    "hash": "d5ce9b0142b3",
    "firstSeen": "2026-10-27",
-   "lastSeen": "2026-10-30",
+   "lastSeen": "2026-11-02",
    "kwScore": 4,
    "relevance": 32
   },
@@ -667,10 +797,12 @@
    "call_id": "HORIZON-BRIDGING-2027-01",
    "action_type": "HORIZON Innovation Actions",
    "auto_tags": [],
+   "deadline_time": "",
+   "text_hash": "",
    "deadline": "2027-02-16",
    "hash": "d417e3d752fa",
    "firstSeen": "2026-10-27",
-   "lastSeen": "2026-10-30",
+   "lastSeen": "2026-11-02",
    "kwScore": 2,
    "relevance": 16
   },
@@ -693,12 +825,46 @@
    "call_id": "HORIZON-BRIDGING-2027-05",
    "action_type": "HORIZON Coordination and Support Actions",
    "auto_tags": [],
+   "deadline_time": "",
+   "text_hash": "",
    "deadline": "2027-03-03",
    "hash": "6e19feb80763",
    "firstSeen": "2026-10-27",
-   "lastSeen": "2026-10-30",
+   "lastSeen": "2026-11-02",
    "kwScore": 2,
    "relevance": 16
+  },
+  {
+   "id": "cetp:joint-call-2026",
+   "source": "cetp",
+   "title": "CETPartnership Joint Call 2026",
+   "url": "https://cetpartnership.eu/calls/joint-call-2026/",
+   "funder": "Clean Energy Transition Partnership",
+   "programme": "CETPartnership (Business Finland in Finland)",
+   "status": "open",
+   "opens": "2026-06-08",
+   "deadlines": [
+    "2026-10-08",
+    "2027-03-11"
+   ],
+   "deadline_text": "",
+   "continuous": false,
+   "summary": "CETPartnership's fifth annual joint call with 11 call modules, from energy system resilience and renewables to hydrogen, stationary batteries, heating and cooling and integrated regional energy systems. The next deadline is for full proposals, by invitation after the pre-proposal stage.",
+   "region": "",
+   "call_id": "CETP JC2026",
+   "action_type": "Transnational joint call",
+   "auto_tags": [
+    "clean energy",
+    "partnership call"
+   ],
+   "deadline_time": "14:00 CET",
+   "text_hash": "",
+   "deadline": "2027-03-11",
+   "hash": "9d5e43cbbb7d",
+   "firstSeen": "2026-11-02",
+   "lastSeen": "2026-11-02",
+   "kwScore": 7,
+   "relevance": 56
   },
   {
    "id": "interreg:9f7c072177f5",
@@ -721,10 +887,12 @@
    "auto_tags": [
     "Smarter Europe"
    ],
+   "deadline_time": "",
+   "text_hash": "",
    "deadline": "2027-03-12",
    "hash": "0b9096c3524c",
    "firstSeen": "2026-10-01",
-   "lastSeen": "2026-10-30",
+   "lastSeen": "2026-11-02",
    "kwScore": 0,
    "relevance": 0
   },
@@ -747,10 +915,12 @@
    "call_id": "HORIZON-CL5-2027-02-D3",
    "action_type": "HORIZON Innovation Actions",
    "auto_tags": [],
+   "deadline_time": "",
+   "text_hash": "",
    "deadline": "2027-03-31",
    "hash": "cadefc6450bc",
    "firstSeen": "2026-10-27",
-   "lastSeen": "2026-10-30",
+   "lastSeen": "2026-11-02",
    "kwScore": 6,
    "relevance": 48
   },
@@ -773,10 +943,12 @@
    "call_id": "HORIZON-CL5-2027-02-D3",
    "action_type": "HORIZON Innovation Actions",
    "auto_tags": [],
+   "deadline_time": "",
+   "text_hash": "",
    "deadline": "2027-03-31",
    "hash": "27328c22681e",
    "firstSeen": "2026-10-27",
-   "lastSeen": "2026-10-30",
+   "lastSeen": "2026-11-02",
    "kwScore": 12,
    "relevance": 88,
    "aiScore": 88,
@@ -807,10 +979,12 @@
    "call_id": "HORIZON-CL5-2027-02-D2",
    "action_type": "HORIZON Innovation Actions",
    "auto_tags": [],
+   "deadline_time": "",
+   "text_hash": "",
    "deadline": "2027-03-31",
    "hash": "92c4f22d64b4",
    "firstSeen": "2026-10-27",
-   "lastSeen": "2026-10-30",
+   "lastSeen": "2026-11-02",
    "kwScore": 6,
    "relevance": 48
   },
@@ -833,10 +1007,12 @@
    "call_id": "HORIZON-CL5-2027-03-D5",
    "action_type": "HORIZON Innovation Actions",
    "auto_tags": [],
+   "deadline_time": "",
+   "text_hash": "",
    "deadline": "2027-04-14",
    "hash": "67280c57be19",
    "firstSeen": "2026-10-27",
-   "lastSeen": "2026-10-30",
+   "lastSeen": "2026-11-02",
    "kwScore": 6,
    "relevance": 48
   },
@@ -860,10 +1036,12 @@
    "call_id": "HORIZON-CL5-2027-04-Two-Stage-D2",
    "action_type": "HORIZON  Research and Innovation Actions",
    "auto_tags": [],
+   "deadline_time": "",
+   "text_hash": "",
    "deadline": "2027-04-14",
    "hash": "88c8cf761c5d",
    "firstSeen": "2026-10-27",
-   "lastSeen": "2026-10-30",
+   "lastSeen": "2026-11-02",
    "kwScore": 6,
    "relevance": 48
   },
@@ -886,12 +1064,42 @@
    "call_id": "HORIZON-CL5-2027-03-D5",
    "action_type": "HORIZON Innovation Actions",
    "auto_tags": [],
+   "deadline_time": "",
+   "text_hash": "",
    "deadline": "2027-04-14",
    "hash": "08dbf1aa75fc",
    "firstSeen": "2026-10-27",
-   "lastSeen": "2026-10-30",
+   "lastSeen": "2026-11-02",
    "kwScore": 4,
    "relevance": 32
+  },
+  {
+   "id": "va:va-jotpa-2026-5",
+   "source": "va",
+   "title": "Hankeavustus työn ohessa opiskelun vahvistamiseksi 4/2026",
+   "url": "https://www.haeavustuksia.fi/fi/haku/va-jotpa-2026-5",
+   "funder": "Jotpa (Service Centre for Continuous Learning and Employment)",
+   "programme": "Jotpa",
+   "status": "open",
+   "opens": "2026-10-30",
+   "deadlines": [
+    "2027-04-30"
+   ],
+   "deadline_text": "",
+   "continuous": false,
+   "summary": "Project grants to develop how work and studies fit together and to ease the shortage of skilled labour in sectors with labour shortages.",
+   "region": "",
+   "call_id": "va-jotpa-2026-5",
+   "action_type": "",
+   "auto_tags": [],
+   "deadline_time": "23:59 Finnish time",
+   "text_hash": "",
+   "deadline": "2027-04-30",
+   "hash": "e334f94853c2",
+   "firstSeen": "2026-11-02",
+   "lastSeen": "2026-11-02",
+   "kwScore": 0,
+   "relevance": 0
   },
   {
    "id": "eu:DIGITAL-2023-SKILLS-04-SEMICONDUCTORS",
@@ -912,10 +1120,12 @@
    "call_id": "DIGITAL-2023-SKILLS-04",
    "action_type": "DIGITAL Simple Grants",
    "auto_tags": [],
+   "deadline_time": "",
+   "text_hash": "",
    "deadline": "2027-06-30",
    "hash": "39cc37a1a206",
    "firstSeen": "2026-10-27",
-   "lastSeen": "2026-10-30",
+   "lastSeen": "2026-11-02",
    "kwScore": 2,
    "relevance": 16
   },
@@ -938,10 +1148,12 @@
    "call_id": "HORIZON-CL5-2027-05-D2",
    "action_type": "HORIZON Innovation Actions",
    "auto_tags": [],
+   "deadline_time": "",
+   "text_hash": "",
    "deadline": "2027-09-15",
    "hash": "615579340e45",
    "firstSeen": "2026-10-27",
-   "lastSeen": "2026-10-30",
+   "lastSeen": "2026-11-02",
    "kwScore": 14,
    "relevance": 81,
    "aiScore": 81,
@@ -971,10 +1183,12 @@
    "call_id": "HORIZON-CL5-2027-05-D4",
    "action_type": "HORIZON Innovation Actions",
    "auto_tags": [],
+   "deadline_time": "",
+   "text_hash": "",
    "deadline": "2027-09-15",
    "hash": "8976582fcfcb",
    "firstSeen": "2026-10-27",
-   "lastSeen": "2026-10-30",
+   "lastSeen": "2026-11-02",
    "kwScore": 2,
    "relevance": 16
   },
@@ -997,10 +1211,12 @@
    "call_id": "HORIZON-CL6-2027-01-ZEROPOLLUTION",
    "action_type": "HORIZON  Research and Innovation Actions",
    "auto_tags": [],
+   "deadline_time": "",
+   "text_hash": "",
    "deadline": "2027-09-22",
    "hash": "07239c5c8d43",
    "firstSeen": "2026-10-27",
-   "lastSeen": "2026-10-30",
+   "lastSeen": "2026-11-02",
    "kwScore": 0,
    "relevance": 0
   },
@@ -1023,10 +1239,12 @@
    "call_id": "HORIZON-MISS-2027-04-CIT",
    "action_type": "HORIZON Coordination and Support Actions",
    "auto_tags": [],
+   "deadline_time": "",
+   "text_hash": "",
    "deadline": "2027-10-07",
    "hash": "2db4bb96e0fe",
    "firstSeen": "2026-10-27",
-   "lastSeen": "2026-10-30",
+   "lastSeen": "2026-11-02",
    "kwScore": 4,
    "relevance": 32
   },
@@ -1049,10 +1267,12 @@
    "call_id": "HORIZON-MISS-2027-04-CIT",
    "action_type": "HORIZON Innovation Actions",
    "auto_tags": [],
+   "deadline_time": "",
+   "text_hash": "",
    "deadline": "2027-10-07",
    "hash": "17686abe42d8",
    "firstSeen": "2026-10-27",
-   "lastSeen": "2026-10-30",
+   "lastSeen": "2026-11-02",
    "kwScore": 4,
    "relevance": 76,
    "aiScore": 76,
@@ -1083,10 +1303,12 @@
    "call_id": "HORIZON-CL5-2027-07-D3",
    "action_type": "HORIZON Innovation Actions",
    "auto_tags": [],
+   "deadline_time": "",
+   "text_hash": "",
    "deadline": "2027-12-01",
    "hash": "d77186a704ac",
    "firstSeen": "2026-10-27",
-   "lastSeen": "2026-10-30",
+   "lastSeen": "2026-11-02",
    "kwScore": 2,
    "relevance": 16
   },
@@ -1109,12 +1331,44 @@
    "call_id": "HORIZON-CL5-2027-07-D3",
    "action_type": "HORIZON Innovation Actions",
    "auto_tags": [],
+   "deadline_time": "",
+   "text_hash": "",
    "deadline": "2027-12-01",
    "hash": "6d89eaba8b8e",
    "firstSeen": "2026-10-27",
-   "lastSeen": "2026-10-30",
+   "lastSeen": "2026-11-02",
    "kwScore": 8,
    "relevance": 64
+  },
+  {
+   "id": "va:va-ulii-2023-3",
+   "source": "va",
+   "title": "Interreg-ohjelmien kansallisen vastinrahoituksen haku",
+   "url": "https://www.haeavustuksia.fi/fi/haku/va-ulii-2023-3",
+   "funder": "Helsinki-Uusimaa Regional Council",
+   "programme": "State grant",
+   "status": "open",
+   "opens": "2022-06-16",
+   "deadlines": [
+    "2027-12-31"
+   ],
+   "deadline_text": "",
+   "continuous": false,
+   "summary": "National co-funding for Finnish partners in Interreg projects.",
+   "region": "",
+   "call_id": "va-ulii-2023-3",
+   "action_type": "",
+   "auto_tags": [
+    "ULII"
+   ],
+   "deadline_time": "",
+   "text_hash": "",
+   "deadline": "2027-12-31",
+   "hash": "b0c19a5e5f94",
+   "firstSeen": "2026-11-02",
+   "lastSeen": "2026-11-02",
+   "kwScore": 0,
+   "relevance": 0
   },
   {
    "id": "bf:co-creation",
@@ -1133,10 +1387,12 @@
    "call_id": "",
    "action_type": "",
    "auto_tags": [],
+   "deadline_time": "",
+   "text_hash": "",
    "deadline": null,
    "hash": "bf9f86e8eff4",
    "firstSeen": "2026-10-01",
-   "lastSeen": "2026-10-30",
+   "lastSeen": "2026-11-02",
    "kwScore": 1,
    "relevance": 8
   },
@@ -1157,10 +1413,12 @@
    "call_id": "",
    "action_type": "",
    "auto_tags": [],
+   "deadline_time": "",
+   "text_hash": "",
    "deadline": null,
    "hash": "7dc99e627eb0",
    "firstSeen": "2026-10-01",
-   "lastSeen": "2026-10-30",
+   "lastSeen": "2026-11-02",
    "kwScore": 1,
    "relevance": 8
   },
@@ -1181,10 +1439,12 @@
    "call_id": "",
    "action_type": "",
    "auto_tags": [],
+   "deadline_time": "",
+   "text_hash": "",
    "deadline": null,
    "hash": "2905e730aed1",
    "firstSeen": "2026-10-01",
-   "lastSeen": "2026-10-30",
+   "lastSeen": "2026-11-02",
    "kwScore": 2,
    "relevance": 16,
    "aiSummary": "Investment and energy audit grants for companies and communities of all sizes. Projects must save energy or make energy production or use more efficient, supporting Finland's carbon neutrality targets."
@@ -1206,10 +1466,12 @@
    "call_id": "",
    "action_type": "",
    "auto_tags": [],
+   "deadline_time": "",
+   "text_hash": "",
    "deadline": null,
    "hash": "a8ad48c7de84",
    "firstSeen": "2026-10-01",
-   "lastSeen": "2026-10-30",
+   "lastSeen": "2026-11-02",
    "kwScore": 0,
    "relevance": 0
   },
@@ -1230,10 +1492,105 @@
    "call_id": "",
    "action_type": "",
    "auto_tags": [],
+   "deadline_time": "",
+   "text_hash": "",
    "deadline": null,
    "hash": "cb5dd3bcdb00",
    "firstSeen": "2026-10-01",
-   "lastSeen": "2026-10-30",
+   "lastSeen": "2026-11-02",
+   "kwScore": 0,
+   "relevance": 0
+  },
+  {
+   "id": "eura:bbffeaa0-a0da-493e-9793-fb2f6e16a0b3",
+   "source": "eura",
+   "title": "Länsi-Suomen alueen et. 5.1. Turvaverkkoja nuorten tulevaisuuteen kehittämishankehaku",
+   "url": "https://eura2021.fi/hakuilmoitukset/hakuilmoitus/bbffeaa0-a0da-493e-9793-fb2f6e16a0b3/",
+   "funder": "Keski-Suomen elinvoimakeskus",
+   "programme": "ESF+",
+   "status": "open",
+   "opens": "2026-08-03",
+   "deadlines": [
+    "2026-10-30"
+   ],
+   "deadline_text": "",
+   "continuous": false,
+   "summary": "ESF+ call by Keski-Suomen elinvoimakeskus.",
+   "region": "Varsinais-Suomi, Satakunta, Pirkanmaa, Keski-Suomi, Pohjanmaa, Etelä-Pohjanmaa, Keski-Pohjanmaa",
+   "call_id": "KESEVK-300",
+   "action_type": "",
+   "auto_tags": [
+    "ESF+"
+   ],
+   "deadline_time": "",
+   "text_hash": "",
+   "deadline": null,
+   "hash": "79d5577e927d",
+   "firstSeen": "2026-10-01",
+   "lastSeen": "2026-11-02",
+   "kwScore": 3,
+   "relevance": 22,
+   "aiScore": 22,
+   "aiReason": "Youth inclusion call covering Southwest Finland; no energy angle, mainly for education and guidance projects.",
+   "aiTags": [
+    "youth",
+    "ESF+"
+   ],
+   "aiEligible": "yes"
+  },
+  {
+   "id": "maaseutu:demo-lou",
+   "source": "maaseutu",
+   "title": "Maaseudun kehittämishankkeet – Lounais-Suomen elinvoimakeskus",
+   "url": "https://maaseutu.fi/lounais-suomi/varsinais-suomi/rahoitus-varsinais-suomessa/valintajaksot/",
+   "funder": "Lounais-Suomen elinvoimakeskus",
+   "programme": "Rural development (CAP)",
+   "status": "open",
+   "opens": null,
+   "deadlines": [],
+   "deadline_text": "Rolling; next selection periods not published yet",
+   "continuous": true,
+   "summary": "Applications are open all the time and decided after each selection period.",
+   "region": "Varsinais-Suomi",
+   "call_id": "",
+   "action_type": "",
+   "auto_tags": [
+    "CAP"
+   ],
+   "deadline_time": "",
+   "text_hash": "",
+   "deadline": null,
+   "hash": "9abd4b54cbc9",
+   "firstSeen": "2026-11-02",
+   "lastSeen": "2026-11-02",
+   "kwScore": 3,
+   "relevance": 24
+  },
+  {
+   "id": "saatio:maj-ja-tor-nesslingin-saatio",
+   "source": "saatiot",
+   "title": "Maj ja Tor Nesslingin säätiö: grants",
+   "url": "https://nessling.fi/en/open-calls/",
+   "funder": "Maj ja Tor Nesslingin säätiö",
+   "programme": "Foundation",
+   "status": "open",
+   "opens": null,
+   "deadlines": [],
+   "deadline_text": "See the foundation's page",
+   "continuous": false,
+   "summary": "Environmental research and its use; personal grants and implementation project grants",
+   "region": "",
+   "call_id": "",
+   "action_type": "",
+   "auto_tags": [
+    "foundation"
+   ],
+   "deadline_time": "",
+   "text_hash": "",
+   "deadline": null,
+   "hash": "6e9cd24cc27b",
+   "firstSeen": "2026-11-02",
+   "lastSeen": "2026-11-02",
    "kwScore": 0,
    "relevance": 0
   },
@@ -1254,10 +1611,12 @@
    "call_id": "",
    "action_type": "",
    "auto_tags": [],
+   "deadline_time": "",
+   "text_hash": "",
    "deadline": null,
    "hash": "f3fd78198c2e",
    "firstSeen": "2026-10-01",
-   "lastSeen": "2026-10-30",
+   "lastSeen": "2026-11-02",
    "kwScore": 0,
    "relevance": 0
   },
@@ -1280,10 +1639,12 @@
    "auto_tags": [
     "International calls"
    ],
+   "deadline_time": "",
+   "text_hash": "",
    "deadline": null,
    "hash": "2424b09f8069",
    "firstSeen": "2026-10-01",
-   "lastSeen": "2026-10-30",
+   "lastSeen": "2026-11-02",
    "kwScore": 0,
    "relevance": 0
   },
@@ -1304,12 +1665,42 @@
    "call_id": "",
    "action_type": "",
    "auto_tags": [],
+   "deadline_time": "",
+   "text_hash": "",
    "deadline": null,
    "hash": "a7be8b21a568",
    "firstSeen": "2026-10-01",
-   "lastSeen": "2026-10-30",
+   "lastSeen": "2026-11-02",
    "kwScore": 0,
    "relevance": 0
+  },
+  {
+   "id": "saatio:skr-varsinais-suomen-rahasto",
+   "source": "saatiot",
+   "title": "Suomen Kulttuurirahasto, Varsinais-Suomen rahasto: grants",
+   "url": "https://www.skr.fi/en/regional-funds/varsinais-suomi-regional-fund/varsinais-suomi-grants",
+   "funder": "Suomen Kulttuurirahasto, Varsinais-Suomen rahasto",
+   "programme": "Foundation",
+   "status": "open",
+   "opens": null,
+   "deadlines": [],
+   "deadline_text": "See the foundation's page",
+   "continuous": false,
+   "summary": "Regional fund for science, art and culture in Varsinais-Suomi; individuals and working groups",
+   "region": "",
+   "call_id": "",
+   "action_type": "",
+   "auto_tags": [
+    "foundation"
+   ],
+   "deadline_time": "",
+   "text_hash": "",
+   "deadline": null,
+   "hash": "dfd222d557ac",
+   "firstSeen": "2026-11-02",
+   "lastSeen": "2026-11-02",
+   "kwScore": 3,
+   "relevance": 24
   },
   {
    "id": "bf:haku-tutkimusorganisaatio-pk-yritys",
@@ -1328,10 +1719,12 @@
    "call_id": "",
    "action_type": "",
    "auto_tags": [],
+   "deadline_time": "",
+   "text_hash": "",
    "deadline": null,
    "hash": "8ef1c32a5499",
    "firstSeen": "2026-10-01",
-   "lastSeen": "2026-10-30",
+   "lastSeen": "2026-11-02",
    "kwScore": 2,
    "relevance": 72,
    "aiSummary": "Funds research organisations only, for projects that bring SMEs and Mittelstand companies into research collaboration when they have not used research organisations systematically before.",
@@ -1360,10 +1753,12 @@
    "call_id": "",
    "action_type": "",
    "auto_tags": [],
+   "deadline_time": "",
+   "text_hash": "",
    "deadline": null,
    "hash": "d978b4083066",
    "firstSeen": "2026-10-01",
-   "lastSeen": "2026-10-30",
+   "lastSeen": "2026-11-02",
    "kwScore": 1,
    "relevance": 8
   }
@@ -1374,11 +1769,15 @@
    "bf": 10,
    "aka": 10,
    "eura": 8,
-   "interreg": 3
+   "interreg": 3,
+   "cetp": 1,
+   "va": 4,
+   "maaseutu": 3,
+   "saatiot": 2
   },
   "errors": {},
-  "total": 50,
-  "lastRun": "2026-10-29T03:17:00+00:00",
+  "total": 60,
+  "lastRun": "2026-11-02T03:17:00+00:00",
   "demo": true
  }
 }

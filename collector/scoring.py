@@ -14,7 +14,7 @@ AI_PROMPT = """You assess how relevant a funding call is for the organisation de
 
 ORGANISATION:
 {org}
-
+{examples}
 FUNDING CALL:
 Funder: {funder} / {programme}
 Title: {title}
@@ -29,7 +29,7 @@ Reply with ONLY a JSON object, no other text:
   "score": <0-100, how well the call fits the organisation>,
   "reason": "<1-2 short sentences in English: why it fits or does not>",
   "tags": ["<2-5 short topic tags in English>"],
-  "eligible": "<yes | no | unclear - can a university of applied sciences / research organisation be an applicant or partner>",
+  "eligible": "<yes | no | unclear - can a university of applied sciences / research organisation be an applicant or partner (personal grants its researchers can apply for count as yes; calls only for companies, municipalities, associations, farms or other regions count as no)>",
   "deadline": "<YYYY-MM-DD if the text states a deadline missing above, otherwise null>",
   "opens": "<YYYY-MM-DD or null>",
   "continuous": <true if the call is continuous/rolling, otherwise false>}}"""
@@ -53,14 +53,24 @@ def _parse_json(text: str) -> dict:
     return json.loads(m.group(0)) if m else {}
 
 
+def format_examples(examples: list) -> str:
+    """The team's own verdicts on earlier calls, so Claude's scores follow the team's judgement."""
+    if not examples:
+        return ""
+    lines = [f"- {e['title']} ({e['funder']}): {e['verdict']}" + (f" - {e['reason']}" if e.get("reason") else "")
+             for e in examples]
+    return ("\nHOW THE TEAM HAS JUDGED EARLIER CALLS (follow the same judgement):\n" + "\n".join(lines) + "\n")
+
+
 class AiScorer:
-    def __init__(self, cfg: dict, profile: dict):
+    def __init__(self, cfg: dict, profile: dict, examples: list | None = None):
         self.enabled = bool(os.environ.get("ANTHROPIC_API_KEY"))
         self.model = cfg.get("model", "claude-haiku-5-5")
         self.budget = int(cfg.get("max_calls_per_run", 700))
         self.eu_min = int(cfg.get("eu_min_keyword_score", 0))
         self.org = profile.get("organisation", "")
         self.version = ai_version(profile)
+        self.examples = format_examples(examples or [])
         self.used = 0
         self.tokens_in = 0
         self.tokens_out = 0
@@ -98,7 +108,7 @@ class AiScorer:
         with self._lock:
             self.used += 1
         prompt = AI_PROMPT.format(
-            org=self.org, funder=call.funder, programme=call.programme, title=call.title,
+            org=self.org, examples=self.examples, funder=call.funder, programme=call.programme, title=call.title,
             call_id=call.call_id or "-", action_type=call.action_type or "-", status=call.status,
             opens=call.opens or "?", deadline=call.next_deadline or call.deadline_text or "?",
             text=(call.detail_text or call.summary)[:5000],

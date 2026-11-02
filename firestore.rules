@@ -53,6 +53,9 @@ service cloud.firestore {
     match /notes/{callId} {
       allow read: if allowed();
       allow write: if isMember();
+      // Partners may only update the comment counter when they comment
+      allow create, update: if allowed()
+        && request.resource.data.diff(resource == null ? {} : resource.data).affectedKeys().hasOnly(['commentCount']);
 
       // Comments: partners can comment too; authors can edit/delete their own
       match /comments/{cid} {
@@ -60,6 +63,15 @@ service cloud.firestore {
         allow create: if allowed() && request.resource.data.author == email();
         allow update, delete: if allowed() && resource.data.author == email() || isAdmin();
       }
+    }
+
+    // "Is this call relevant for us?" - one document per person and call: ratings/{callKey}__{email}
+    match /ratings/{rid} {
+      allow read: if allowed();
+      allow create, update: if allowed() && request.resource.data.email == email()
+        && rid == request.resource.data.callKey + '__' + email()
+        && request.resource.data.v in [1, 0, -1];
+      allow delete: if allowed() && resource.data.email == email();
     }
 
     // Partner list

@@ -14,6 +14,12 @@ const SOURCES = {
   aka: { label: "Research Council of Finland", short: "RCF", color: "var(--src-aka)" },
   eura: { label: "ERDF / ESF+ / JTF (EURA)", short: "EURA", color: "var(--src-eura)" },
   interreg: { label: "Interreg", short: "Interreg", color: "var(--src-interreg)" },
+  cetp: { label: "CETPartnership", short: "CETP", color: "var(--src-cetp)" },
+  oph: { label: "EDUFI grants (OPH)", short: "EDUFI", color: "var(--src-oph)" },
+  jotpa: { label: "Jotpa", short: "Jotpa", color: "var(--src-jotpa)" },
+  gov: { label: "Ministries and agencies", short: "State", color: "var(--src-gov)" },
+  maaseutu: { label: "Rural development (CAP, Leader)", short: "CAP", color: "var(--src-maaseutu)" },
+  saatiot: { label: "Foundations", short: "Foundation", color: "var(--src-saatiot)" },
   manual: { label: "Added by the team", short: "Own", color: "var(--src-manual)" },
 };
 const STAGES = [
@@ -55,12 +61,14 @@ const STAR_O = `<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" st
 const EU_GROUPS = ["horizon", "erasmus", "life", "digital", "euother"];
 // How the funder filter is grouped
 const FUNDER_GROUPS = [
-  { key: "intl", label: "EU and international", keys: [...EU_GROUPS, "interreg"] },
-  { key: "fi", label: "Finland", keys: ["bf", "aka", "eura"] },
+  { key: "intl", label: "EU and international", keys: [...EU_GROUPS, "interreg", "cetp"] },
+  { key: "fi", label: "Finland", keys: ["bf", "aka", "eura", "jotpa", "gov", "oph", "maaseutu", "saatiot"] },
   { key: "own", label: "Added by the team", keys: ["manual"] },
 ];
-const SOURCE_SHORT = { eu: "EU", bf: "BF", aka: "RCF", eura: "EURA", interreg: "Interreg" }; // collector run counts
+const SOURCE_SHORT = { eu: "EU", bf: "BF", aka: "RCF", eura: "EURA", interreg: "Interreg", cetp: "CETP", oph: "EDUFI", va: "Haeavustuksia.fi", maaseutu: "Maaseutu.fi", saatiot: "foundations" }; // collector run counts
 function groupOf(c) {
+  if (c.source === "oph") return /erasmus/i.test(c.programme || "") ? "erasmus" : "oph";
+  if (c.source === "va") return c.programme === "Jotpa" ? "jotpa" : "gov";
   if (c.source !== "eu") return SOURCES[c.source] ? c.source : "manual";
   const p = (c.programme || "") + " " + (c.call_id || c.id || "");
   if (/horizon|euratom/i.test(p)) return "horizon";
@@ -70,21 +78,27 @@ function groupOf(c) {
   return "euother";
 }
 const srcOf = (c) => SOURCES[groupOf(c)];
-const DEFAULT_FILTERS = { showHidden: false, q: "", sources: Object.keys(SOURCES), status: ["open", "forthcoming"], window: "all", minRel: 0, favOnly: false, mineOnly: false, tag: "", idea: "" };
+const DEFAULT_FILTERS = { newOnly: false, showHidden: false, q: "", sources: Object.keys(SOURCES), status: ["open", "forthcoming"], window: "all", minRel: 0, favOnly: false, mineOnly: false, tag: "", idea: "" };
 
 /* ================= State ================= */
 
 // Saved filters from before EU was split by programme had a single "eu" entry.
+// Funder groups added after the filters were saved are switched on.
+const FIRST_GROUPS = ["horizon", "erasmus", "life", "digital", "euother", "bf", "aka", "eura", "interreg", "manual"];
 function migrateFilters(f) {
   if (f.sources.includes("eu")) f.sources = [...f.sources.filter((s) => s !== "eu"), ...EU_GROUPS];
-  f.sources = [...new Set(f.sources.filter((s) => SOURCES[s]))];
+  const known = f.known || FIRST_GROUPS;
+  f.sources = [...new Set([...f.sources, ...Object.keys(SOURCES).filter((k) => !known.includes(k))].filter((s) => SOURCES[s]))];
+  f.known = Object.keys(SOURCES);
   return f;
 }
+/** Only http(s) links are rendered, so a manually added call cannot carry a javascript: link. */
+const safeUrl = (u) => (/^https?:\/\//i.test(String(u || "").trim()) ? String(u).trim() : "#");
 
 const S = {
   store: null,
   calls: [], byId: new Map(), meta: {},
-  notes: {}, partners: [], allow: [], me: { favorites: [] }, profile: undefined, profileDraft: null,
+  notes: {}, ratings: {}, partners: [], allow: [], me: { favorites: [] }, profile: undefined, profileDraft: null,
   view: LS.get("rv-view", "list"),
   filters: migrateFilters(Object.assign({}, DEFAULT_FILTERS, LS.get("rv-filters", {}))),
   sort: LS.get("rv-sort", "deadline"),
@@ -100,8 +114,15 @@ const isMember = () => ["admin", "member"].includes(S.store.user.role);
 const isAdmin = () => S.store.user.role === "admin";
 const personName = (p) => S.allow.find((a) => a.email === p)?.name || p;
 const nextDeadline = (c) => c.deadline || (c.deadlines || []).filter((d) => d >= TODAY_ISO).sort()[0] || null;
-const isClosed = (c) => c.status === "closed" || (nextDeadline(c) === null && (c.deadlines || []).length > 0);
+const isClosed = (c) => c.status === "closed" || (!c.continuous && nextDeadline(c) === null && (c.deadlines || []).length > 0);
 const isNew = (c) => c.firstSeen && (Date.parse(S.meta.lastRun || today) - parseIso(c.firstSeen)) / DAY <= 7;
+/** The team's answers to "Is this relevant for us?": {up, mid, down, score, mine}. */
+function ratingOf(id) {
+  const rs = S.ratings[id] || [];
+  const me = S.store.user.email;
+  return { list: rs, up: rs.filter((r) => r.v === 1).length, mid: rs.filter((r) => r.v === 0).length,
+    down: rs.filter((r) => r.v === -1).length, score: rs.reduce((n, r) => n + (r.v || 0), 0), mine: rs.find((r) => r.email === me) || null };
+}
 function allTags() {
   const set = new Set();
   Object.values(S.notes).forEach((n) => (n.tags || []).forEach((t) => set.add(t)));
@@ -137,6 +158,7 @@ async function loadAll() {
   S.byId = new Map(items.map((c) => [c.id, c]));
   S.store.watchNotes((n) => { S.notes = n; refresh(); });
   S.store.watchPartners((p) => { S.partners = p; refresh(); });
+  S.store.watchRatings((r) => { S.ratings = r || {}; refresh(); });
   S.store.watchAllow((a) => { S.allow = a; refresh(); });
   S.store.watchProfile((p) => { S.profile = p; if (S.view === "profile" && !S.profileDraft) refresh(); });
   renderShell();
@@ -191,7 +213,7 @@ function renderShell() {
   const tabs = [["list", "Calls"], ["board", "Pipeline"], ["partners", "Partners"], ["profile", "Profile"]].concat(isAdmin() ? [["users", "Users"]] : []);
   if (S.view === "users" && !isAdmin()) S.view = "list";
   $("#app").innerHTML = `
-  ${S.store.mode === "demo" ? `<div class="demo-band"><span>Demo: a sample of ${S.calls.length} real calls collected on 29 Oct 2026 (the full service tracks about 450). Your changes are saved in this browser only. AI summaries and reasons on the calls are examples.</span><button id="demo-reset">Reset demo</button></div>` : ""}
+  ${S.store.mode === "demo" ? `<div class="demo-band"><span>Demo: a sample of ${S.calls.length} real calls collected on 29 Oct and 2 Nov 2026 (the full service tracks several hundred). Your changes are saved in this browser only. AI summaries and reasons on the calls are examples.</span><button id="demo-reset">Reset demo</button></div>` : ""}
   <header class="top">
     <div class="brand"><b>${esc(window.RV_CONFIG?.appName || "Rahoitusvahti")}</b><span>${esc(window.RV_CONFIG?.orgName || "")}</span></div>
     <nav class="tabs" aria-label="Views">${tabs.map(([k, l]) => `<button data-view="${k}" ${S.view === k ? 'aria-current="page"' : ""}>${l}</button>`).join("")}</nav>
@@ -241,7 +263,7 @@ const HIDDEN_LABEL = {
 /** Why a call is hidden by default, or null when it is shown. */
 function hiddenReason(c) {
   if (noteOf(c.id).stage === "skip") return "skip";
-  if (c.source === "eura" && c.region) {
+  if ((c.source === "eura" || c.source === "maaseutu") && c.region) {
     const home = homeRegion();
     const parts = c.region.split(",").map((s) => s.trim());
     const national = parts.some((p) => /^(national|valtakunnallinen)$/i.test(p));
@@ -264,6 +286,7 @@ function filtered() {
     const st = isClosed(c) ? "closed" : c.status;
     if (!f.status.includes(st)) return false;
     if (f.favOnly && !fav(c.id)) return false;
+    if (f.newOnly && !isNew(c)) return false;
     const n = noteOf(c.id);
     if (f.mineOnly && !(n.people || []).includes(me)) return false;
     if (f.tag && !(n.tags || []).includes(f.tag)) return false;
@@ -282,7 +305,8 @@ function sorted(list) {
     deadline: (a, b) => (nextDeadline(a) || "9999").localeCompare(nextDeadline(b) || "9999") || (b.relevance ?? 0) - (a.relevance ?? 0),
     relevance: (a, b) => (b.relevance ?? 0) - (a.relevance ?? 0),
     new: (a, b) => (b.firstSeen || "").localeCompare(a.firstSeen || "") || (b.relevance ?? 0) - (a.relevance ?? 0),
-  }[S.sort];
+    team: (a, b) => ratingOf(b.id).score - ratingOf(a.id).score || ratingOf(b.id).list.length - ratingOf(a.id).list.length || (b.relevance ?? 0) - (a.relevance ?? 0),
+  }[S.sort] || ((a, b) => 0);
   return [...list].sort(by);
 }
 function saveFilters() { LS.set("rv-filters", S.filters); }
@@ -298,6 +322,7 @@ function renderListView(v) {
   const focusId = document.activeElement?.id;
   const sel = focusId && ["idea-text", "idea-name", "q"].includes(focusId) ? [$("#" + focusId).selectionStart, $("#" + focusId).selectionEnd] : null;
   const hiddenCount = S.calls.filter((c) => f.sources.includes(groupOf(c)) && !isClosed(c) && hiddenReason(c)).length;
+  const newCount = S.calls.filter((c) => isNew(c) && !isClosed(c) && f.sources.includes(groupOf(c)) && (f.showHidden || !hiddenReason(c))).length;
   const soon = list.filter((c) => { const d = daysLeft(nextDeadline(c)); return d !== null && d >= 0 && d <= 30; }).length;
   v.innerHTML = `
   <section class="radar" aria-label="Deadlines on a timeline">
@@ -332,6 +357,7 @@ function renderListView(v) {
       <h2><label for="minrel">Relevance at least <b id="minrel-v">${f.minRel}</b></label></h2>
       <input id="minrel" type="range" min="0" max="90" step="10" value="${f.minRel}">
       <h2>Show only</h2>
+      <label class="check"><input type="checkbox" id="newonly" ${f.newOnly ? "checked" : ""}>New this week<span class="n">${newCount}</span></label>
       <label class="check"><input type="checkbox" id="favonly" ${f.favOnly ? "checked" : ""}>My favourites</label>
       <label class="check"><input type="checkbox" id="mineonly" ${f.mineOnly ? "checked" : ""}>Calls I am involved in</label>
       ${ideas.length ? `<h2><label for="ideaf">Project idea</label></h2><select id="ideaf" class="sel" style="width:100%"><option value="">All ideas</option>${ideas.map((t) => `<option ${f.idea === t ? "selected" : ""}>${esc(t)}</option>`).join("")}</select>` : ""}
@@ -340,20 +366,21 @@ function renderListView(v) {
     </aside>
     <main class="main">
       ${ideaPanelHtml()}
+      ${f.newOnly ? `<div class="new-band" role="status"><span class="tag new">New</span><span>Showing the ${list.length} ${list.length === 1 ? "call" : "calls"} that appeared in the last 7 days.</span><button class="linkbtn" id="new-off">Show all calls</button></div>` : ""}
       <div class="bar">
         <button class="btn ghost mobile-filters" id="toggle-f">Filters</button>
         <span class="count">${list.length} calls</span>
+        ${newCount && !f.newOnly ? `<button class="tag new newbtn" id="new-on" title="Show only calls that appeared in the last 7 days">${newCount} new this week</button>` : ""}
         ${hiddenCount ? `<button class="linkbtn hidden-toggle" id="showhidden" aria-pressed="${f.showHidden}" title="Other regions' ERDF calls, Interreg calls without Finland, calls Claude marked not eligible, and calls marked Not applying">${f.showHidden ? `Hide the ${hiddenCount} calls we can't apply to` : `Show ${hiddenCount} calls we can't apply to`}</button>` : ""}
         <span class="spacer"></span>
-        <label class="sr" for="sort">Sort by</label>
-        <select id="sort" class="sel">
-          <option value="deadline" ${S.sort === "deadline" ? "selected" : ""}>Deadline first</option>
-          <option value="relevance" ${S.sort === "relevance" ? "selected" : ""}>Most relevant first</option>
-          <option value="new" ${S.sort === "new" ? "selected" : ""}>Newest first</option>
-        </select>
         <label class="check inline"><input type="checkbox" id="showsum" ${S.showSummaries ? "checked" : ""}>Show summaries</label>
         <button class="btn ghost" id="ics" title="Download the deadlines of your favourites as a calendar file">Favourites to calendar</button>
         ${isMember() ? `<button class="btn" id="add-call">Add a call</button>` : ""}
+      </div>
+      <div class="sortbar" role="group" aria-label="Sort the list">
+        <span>Sort by</span>
+        ${[["deadline", "Deadline", "Nearest deadline first"], ["relevance", "Relevance", "Claude's relevance score, highest first"], ["team", "Team rating", "Most 👍 from the team first"], ["new", "Newest", "Most recently found first"]]
+          .map(([k, l, t]) => `<button data-sort="${k}" aria-pressed="${S.sort === k}" title="${t}">${l}${S.sort === k ? ` <span aria-hidden="true">${k === "deadline" ? "↑" : "↓"}</span>` : ""}</button>`).join("")}
       </div>
       <div class="list" role="list">${list.length ? list.map(rowHtml).join("") : `<div class="empty"><b>No calls match these filters</b>Widen the deadline window or clear the filters.</div>`}</div>
       ${metaHtml()}
@@ -372,11 +399,11 @@ function rowHtml(c) {
   const cls = dleft !== null && dleft >= 0 && dleft <= 14 ? "urgent" : dleft !== null && dleft <= 45 ? "soon" : "";
   const src = srcOf(c);
   const rel = c.relevance ?? 0;
-  const dlHtml = dl ? `<b>${fmtDate(dl)}</b><span>${daysText(dleft)}${(c.deadlines || []).length > 1 ? " · 2-stage" : ""}</span>`
+  const dlHtml = dl ? `<b>${fmtDate(dl)}</b><span>${daysText(dleft)}${(c.deadlines || []).length > 1 && !c.continuous ? " · 2-stage" : ""}${c.deadline_time ? ` · ${esc(c.deadline_time.split(" ")[0])}` : ""}</span>`
     : c.continuous ? `<b>Rolling</b><span>no deadline</span>`
     : c.deadline_text ? `<b>—</b><span>${esc(c.deadline_text.slice(0, 26))}</span>` : `<b>—</b><span>see funder's page</span>`;
   const opens = c.status === "forthcoming" && c.opens ? `<span>opens ${fmtDate(c.opens)}</span>` : "";
-  const region = c.source === "eura" && c.region ? " · " + esc(c.region.split(",")[0]) + (c.region.includes(",") ? " +" : "") : "";
+  const region = (c.source === "eura" || c.source === "maaseutu") && c.region ? " · " + esc(c.region.split(",")[0]) + (c.region.includes(",") ? " +" : "") : "";
   return `<div class="row ${isClosed(c) ? "closed" : ""}" role="listitem" data-id="${esc(c.id)}" tabindex="0">
     <span class="src" style="background:${src.color}" title="${esc(src.label)}"></span>
     <button class="star" data-fav="${esc(c.id)}" aria-pressed="${fav(c.id)}" aria-label="${fav(c.id) ? "Remove from favourites" : "Add to favourites"}">${fav(c.id) ? STAR : STAR_O}</button>
@@ -385,7 +412,8 @@ function rowHtml(c) {
       <div class="m">
         <span class="fund">${esc(src.short)}${c.programme && c.programme !== c.funder && c.programme !== src.label ? " · " + esc(c.programme) : ""}${region}</span>
         ${opens}
-        ${isNew(c) ? `<span class="tag new">New</span>` : ""}
+        ${isNew(c) ? `<button class="tag new" data-newtag title="Show all calls that are new this week">New</button>` : ""}
+        ${teamBadge(c.id)}
         ${hiddenReason(c) ? `<span class="tag hiddenr">${HIDDEN_LABEL[hiddenReason(c)]}</span>` : ""}
         ${n.idea ? `<span class="tag idea" title="Project idea">${esc(n.idea)}</span>` : ""}
         ${n.stage ? `<span class="tag stage">${esc(STAGE_LABEL[n.stage])}</span>` : ""}
@@ -398,6 +426,13 @@ function rowHtml(c) {
     <div class="rel ${c.aiScore != null ? "ai" : ""}" title="${c.aiScore != null ? "Claude's assessment" : "Keyword score"}"><span class="meter"><i style="width:${rel}%"></i></span>${rel || "–"}</div>
     <div class="dl ${cls}">${dlHtml}</div>
   </div>`;
+}
+
+function teamBadge(id) {
+  const r = ratingOf(id);
+  if (!r.list.length) return "";
+  const who = r.list.map((x) => `${x.name.split(" ")[0]} ${x.v === 1 ? "👍" : x.v === -1 ? "👎" : "🤷"}`).join(", ");
+  return `<span class="tag team ${r.score > 0 ? "up" : r.score < 0 ? "down" : ""}" title="Team: ${esc(who)}">${r.up ? `👍${r.up}` : ""}${r.mid ? ` 🤷${r.mid}` : ""}${r.down ? ` 👎${r.down}` : ""}</span>`;
 }
 
 function metaHtml() {
@@ -483,13 +518,18 @@ function bindList(v) {
   $("#ideaf") && ($("#ideaf").onchange = (e) => { f.idea = e.target.value; upd(); });
   $("#reset-f").onclick = () => { S.filters = { ...DEFAULT_FILTERS, sources: [...DEFAULT_FILTERS.sources], status: [...DEFAULT_FILTERS.status] }; upd(); };
   $("#toggle-f").onclick = () => $("#filters").classList.toggle("open");
-  $("#sort").onchange = (e) => { S.sort = e.target.value; LS.set("rv-sort", S.sort); refresh(); };
+  $$("[data-sort]", v).forEach((b) => (b.onclick = () => { S.sort = b.dataset.sort; LS.set("rv-sort", S.sort); refresh(); }));
+  $("#newonly").onchange = (e) => { f.newOnly = e.target.checked; upd(); };
+  const showNew = (on) => { f.newOnly = on; if (on) { f.status = ["open", "forthcoming"]; } upd(); window.scrollTo({ top: $(".layout")?.offsetTop - 10 || 0, behavior: "smooth" }); };
+  $("#new-on") && ($("#new-on").onclick = () => showNew(true));
+  $("#new-off") && ($("#new-off").onclick = () => showNew(false));
+  $$("[data-newtag]", v).forEach((b) => (b.onclick = (e) => { e.stopPropagation(); showNew(!f.newOnly); }));
   $("#ics").onclick = () => downloadIcs();
   $("#showsum").onchange = (e) => { S.showSummaries = e.target.checked; LS.set("rv-summaries", S.showSummaries); refresh(); };
   $$("[data-hz]", v).forEach((b) => (b.onclick = () => { S.horizon = Number(b.dataset.hz); LS.set("rv-horizon", S.horizon); refresh(); }));
   $("#add-call") && ($("#add-call").onclick = openAddCall);
   $$(".list .row", v).forEach((r) => {
-    r.onclick = (e) => { if (!e.target.closest(".star")) openDrawer(r.dataset.id); };
+    r.onclick = (e) => { if (!e.target.closest(".star, [data-newtag]")) openDrawer(r.dataset.id); };
     r.onkeydown = (e) => { if (e.key === "Enter") openDrawer(r.dataset.id); };
   });
   $$(".list [data-fav]", v).forEach((b) => (b.onclick = (e) => { e.stopPropagation(); toggleFav(b.dataset.fav); }));
@@ -643,7 +683,7 @@ function renderDrawerBody() {
     ["Type of action", c.action_type],
     ["Status", isClosed(c) ? "Closed" : { open: "Open", forthcoming: "Upcoming" }[c.status] || c.status],
     ["Opens", fmtDate(c.opens)],
-    ["Deadline", (c.deadlines || []).length ? c.deadlines.map((d) => `${fmtDate(d)}${d === dl ? ` (${daysText(daysLeft(d))})` : ""}`).join(", ") : c.continuous ? "Rolling call" : c.deadline_text || "Not known – check the funder's page"],
+    [c.continuous && (c.deadlines || []).length ? "Selection periods end" : "Deadline", (c.deadlines || []).length ? c.deadlines.map((d) => `${fmtDate(d)}${d === dl ? ` (${daysText(daysLeft(d))})` : ""}`).join(", ") + (c.deadline_time ? ` · closes ${c.deadline_time}` : "") : c.continuous ? "Rolling call" : c.deadline_text || "Not known – check the funder's page"],
     ["Region / countries", c.region],
     ["First seen", fmtDate(c.firstSeen)],
   ].filter(([, v]) => v);
@@ -653,7 +693,7 @@ function renderDrawerBody() {
     <h2 id="dr-title">${esc(c.title)}</h2>
     <button class="close" aria-label="Close">×</button>
     <div class="actions">
-      <a class="btn" href="${esc(c.url)}" target="_blank" rel="noopener noreferrer">Open funder's page</a>
+      <a class="btn" href="${esc(safeUrl(c.url))}" target="_blank" rel="noopener noreferrer">Open funder's page</a>
       <button class="btn ghost" id="dr-fav" aria-pressed="${fav(c.id)}">${fav(c.id) ? "★ Favourite" : "☆ Add to favourites"}</button>
       ${dl ? `<button class="btn ghost" id="dr-ics">Deadline to calendar</button>` : ""}
       ${c.source === "manual" && (isAdmin() || c.createdBy === S.store.user.email) ? `<button class="btn danger" id="dr-del">Delete call</button>` : ""}
@@ -670,6 +710,7 @@ function renderDrawerBody() {
     ${c.aiScore != null
       ? `<div class="ai-box"><span class="score">${c.aiScore}/100</span> Claude's assessment${c.aiEligible ? ` · UAS eligible: ${esc(c.aiEligible)}` : ""}<p>${esc(c.aiReason || "")}</p></div>`
       : `<div class="ai-box" style="border-color:var(--line)"><span class="score">${c.relevance ?? 0}/100</span> from keywords<p>Claude assesses the call once an API key is added to the collector.</p></div>`}
+    ${ratingHtml(c)}
   </section>
   <section>
     <h3>Team notes</h3>
@@ -697,6 +738,19 @@ function renderDrawerBody() {
   renderComments();
 }
 
+const VOTES = [[1, "👍", "Relevant"], [0, "🤷", "Maybe"], [-1, "👎", "Not relevant"]];
+function ratingHtml(c) {
+  const r = ratingOf(c.id);
+  const mine = r.mine;
+  return `<div class="rate" id="rate">
+    <div class="rate-q"><span id="rate-l">Is this relevant for us?</span>
+      <div class="rate-btns" role="group" aria-labelledby="rate-l">${VOTES.map(([v, e, l]) => `<button data-vote="${v}" aria-pressed="${mine?.v === v}" title="${l}">${e} <span>${l}</span></button>`).join("")}</div></div>
+    ${mine ? `<div class="rate-why"><label class="sr" for="rate-reason">Why (optional)</label><input id="rate-reason" maxlength="300" placeholder="Why? e.g. wrong TRL, we can't be a partner, perfect fit for our pilot" value="${esc(mine.reason || "")}"></div>` : ""}
+    ${r.list.length ? `<ul class="rate-list">${r.list.map((x) => `<li>${x.v === 1 ? "👍" : x.v === -1 ? "👎" : "🤷"} <b>${esc(x.name)}</b>${x.reason ? ` – ${esc(x.reason)}` : ""}</li>`).join("")}</ul>` : ""}
+    <p class="hint">The team's answers are shown to Claude as examples when it assesses new calls, and the Profile tab shows how well its scores match.</p>
+  </div>`;
+}
+
 function chipEditor(kind, items, editable, placeholder) {
   return `<div class="chips" data-kind="${kind}">
     ${items.map(([v, l]) => `<span class="chip">${esc(l)}${editable ? `<button aria-label="Remove ${esc(l)}" data-rm="${esc(v)}">×</button>` : ""}</span>`).join("")}
@@ -708,6 +762,14 @@ function bindDrawer(c, editable) {
   const dr = $("#drawer");
   $(".close", dr).onclick = closeDrawer;
   $("#dr-fav").onclick = () => toggleFav(c.id);
+  $$("[data-vote]", dr).forEach((b) => (b.onclick = async () => {
+    const v = Number(b.dataset.vote);
+    const mine = ratingOf(c.id).mine;
+    await S.store.saveRating(c.id, mine?.v === v ? null : v, mine?.v === v ? "" : mine?.reason || "");
+    if (mine?.v !== v) setTimeout(() => $("#rate-reason")?.focus(), 50);
+  }));
+  $("#rate-reason") && ($("#rate-reason").onchange = (e) => S.store.saveRating(c.id, ratingOf(c.id).mine?.v ?? 0, e.target.value.trim()));
+  $("#rate-reason") && ($("#rate-reason").onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); e.target.blur(); toast("Thanks – noted"); } });
   $("#dr-ics") && ($("#dr-ics").onclick = () => downloadIcs([c]));
   $("#dr-del") && ($("#dr-del").onclick = async () => {
     if (!(await askConfirm("Delete this call you added?"))) return;
@@ -932,7 +994,7 @@ function renderProfile(v) {
     <section class="pf-block">
       <h2>Home region</h2>
       <p class="pf-org">${esc(p.homeRegion || DEFAULT_PROFILE.homeRegion)}</p>
-      <p class="hint">Regional ERDF, ESF+ and JTF calls from other regions are hidden by default. National calls are always shown.</p>
+      <p class="hint">Regional ERDF, ESF+ and JTF calls and rural development (CAP, Leader) funding from other regions are hidden by default. National calls are always shown.</p>
     </section>
     <section class="pf-block">
       <h2>Keywords <span>${(p.keywords || []).length}</span></h2>
@@ -944,14 +1006,42 @@ function renderProfile(v) {
       <p class="hint">These lower the score.</p>
       ${chips(p.negative, "neg")}
     </section>
+    ${calibrationHtml()}
     <p class="foot-meta">Last edited${p.updatedBy ? ` by ${esc(p.updatedBy === "config.yaml" ? "the starting settings" : p.updatedBy)}` : ""}${when ? ` on ${when.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}` : ""}.${isAdmin() ? "" : " Only admins can change the profile."}</p>`}
     ${isAdmin() ? `<button class="btn" id="pf-edit">${p ? "Edit profile" : "Start from suggested profile"}</button>` : ""}
   </div>`;
+  $$("[data-open]", v).forEach((b) => (b.onclick = () => openDrawer(b.dataset.open)));
   $("#pf-edit") && ($("#pf-edit").onclick = () => {
     const base = S.profile || DEFAULT_PROFILE;
     S.profileDraft = { homeRegion: base.homeRegion || DEFAULT_PROFILE.homeRegion, organisation: base.organisation || "", keywords: structuredClone(base.keywords || []), negative: structuredClone(base.negative || []) };
     refresh();
   });
+}
+
+/** How well Claude's scores agree with the team's 👍 / 👎 answers. */
+function calibrationHtml() {
+  const rated = Object.keys(S.ratings).map((id) => ({ c: S.byId.get(id), r: ratingOf(id) }))
+    .filter((x) => x.c && x.c.aiScore != null && x.r.score !== 0);
+  const head = `<section class="pf-block"><h2>Does Claude's relevance score match the team? <span>${rated.length} rated</span></h2>`;
+  if (rated.length < 5) {
+    return `${head}<p class="hint">Answer “Is this relevant for us?” in the call details for at least 5 calls${rated.length ? ` (${5 - rated.length} more to go)` : ""}. This section then shows how often Claude's score agrees with the team, and the calls where they disagree most. The answers are also given to Claude as examples on the next nightly run.</p></section>`;
+  }
+  const up = rated.filter((x) => x.r.score > 0), down = rated.filter((x) => x.r.score < 0);
+  const upOk = up.filter((x) => x.c.aiScore >= 50).length, downOk = down.filter((x) => x.c.aiScore < 50).length;
+  const agree = Math.round(((upOk + downOk) / rated.length) * 100);
+  const pct = (a, b) => (b ? Math.round((a / b) * 100) + "%" : "–");
+  const misses = rated.map((x) => ({ ...x, gap: x.r.score > 0 ? 50 - x.c.aiScore : x.c.aiScore - 50 }))
+    .filter((x) => x.gap > 0).sort((a, b) => b.gap - a.gap).slice(0, 8);
+  return `${head}
+    <div class="calib">
+      <div><b>${agree}%</b><span>agree overall</span></div>
+      <div><b>${pct(upOk, up.length)}</b><span>of ${up.length} 👍 calls scored 50 or more</span></div>
+      <div><b>${pct(downOk, down.length)}</b><span>of ${down.length} 👎 calls scored under 50</span></div>
+    </div>
+    ${misses.length ? `<h3 class="calib-h">Biggest disagreements</h3><ul class="calib-list">${misses.map((x) => `<li><button class="linkbtn" data-open="${esc(x.c.id)}">${esc(x.c.title)}</button>
+      <span>Team ${x.r.score > 0 ? "👍" : "👎"} · Claude ${x.c.aiScore}</span>${x.r.list.find((r) => r.reason) ? `<small>${esc(x.r.list.find((r) => r.reason).reason)}</small>` : ""}</li>`).join("")}</ul>
+      <p class="hint">If the same kind of call keeps coming up here, say it in the team description above (for example the TRL range you work at, or that you are not eligible for company-only calls).</p>` : `<p class="hint">No disagreements so far.</p>`}
+  </section>`;
 }
 
 function renderProfileEditor(v) {

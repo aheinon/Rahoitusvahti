@@ -20,7 +20,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 from common import TODAY, log  # noqa: E402
 import relevance_profile as prof  # noqa: E402
 from scoring import AiScorer, keyword_score  # noqa: E402
-from sources import akatemia, business_finland, eu_ft, eura, interreg  # noqa: E402
+from sources import akatemia, business_finland, cetp, eu_ft, eura, interreg, maaseutu, oph, saatiot, valtionavustukset  # noqa: E402
 from store import Store  # noqa: E402
 
 SOURCES = {
@@ -29,6 +29,11 @@ SOURCES = {
     "aka": akatemia.collect,
     "eura": eura.collect,
     "interreg": interreg.collect,
+    "cetp": cetp.collect,
+    "oph": oph.collect,
+    "va": valtionavustukset.collect,
+    "maaseutu": maaseutu.collect,
+    "saatiot": saatiot.collect,
 }
 
 
@@ -78,6 +83,8 @@ def merge(fresh: list, prev: dict, ok_sources: set, scorer: AiScorer, profile: d
                 rec["deadlines"] = [ai["deadline"]]
             if not rec.get("opens") and ai.get("opens"):
                 rec["opens"] = ai["opens"]
+                if ai["opens"] > today and rec.get("status") == "open":
+                    rec["status"] = "forthcoming"
             if ai.get("continuous") and not rec.get("deadline"):
                 rec["continuous"] = True
         rec["relevance"] = rec.get("aiScore") if rec.get("aiScore") is not None else min(100, max(0, kw * 8))
@@ -96,6 +103,42 @@ def merge(fresh: list, prev: dict, ok_sources: set, scorer: AiScorer, profile: d
             old["status"] = "closed"            # gone from the source -> closed
             out[cid] = old
     return sorted(out.values(), key=lambda r: (r.get("deadline") or "9999", r["title"]))
+
+
+def team_examples(feedback: dict, calls: dict, limit: int = 12) -> list[dict]:
+    """The team's own verdicts on earlier calls, newest first, as examples for Claude.
+
+    feedback = {"ratings": [{callId, email, v (1 | 0 | -1), reason, at}], "notes": {callId: {stage}}}.
+    A clear majority of 👍 / 👎 counts; the pipeline stage counts when nobody has rated the call
+    (Preparing, Submitted, Funded = relevant; Not applying = not relevant).
+    """
+    votes: dict[str, list] = {}
+    for r in feedback.get("ratings", []):
+        votes.setdefault(r.get("callId"), []).append(r)
+    out = []
+    for cid, rs in votes.items():
+        c = calls.get(cid)
+        if not c:
+            continue
+        total = sum(int(r.get("v") or 0) for r in rs)
+        if total == 0:
+            continue
+        reasons = [str(r.get("reason") or "").strip() for r in rs if r.get("reason")]
+        out.append({"at": max(str(r.get("at") or "") for r in rs), "title": c.get("title", ""),
+                    "funder": f"{c.get('funder', '')} / {c.get('programme', '')}".strip(" /"),
+                    "verdict": "relevant" if total > 0 else "not relevant", "reason": "; ".join(reasons)[:200]})
+    rated = {e["title"] for e in out}
+    for cid, n in (feedback.get("notes") or {}).items():
+        c = calls.get(cid)
+        stage = (n or {}).get("stage")
+        if not c or c.get("title") in rated or stage not in ("preparing", "submitted", "funded", "skip"):
+            continue
+        out.append({"at": str((n or {}).get("updatedAt") or ""), "title": c.get("title", ""),
+                    "funder": f"{c.get('funder', '')} / {c.get('programme', '')}".strip(" /"),
+                    "verdict": "not relevant" if stage == "skip" else "relevant",
+                    "reason": "the team decided not to apply" if stage == "skip" else f"the team is {stage} an application"})
+    out.sort(key=lambda e: e["at"], reverse=True)
+    return out[:limit]
 
 
 def main() -> int:
@@ -119,6 +162,11 @@ def main() -> int:
             continue
         try:
             calls = fn(scfg)
+            before = sum(1 for c in prev.values() if c.get("source") == name and c.get("status") != "closed")
+            if not calls and before >= 3:
+                # A source that suddenly returns nothing has most likely changed its page. Keep the
+                # previous calls instead of marking them all closed, and report it as an error.
+                raise RuntimeError(f"returned no calls (previously {before}); the page may have changed")
             fresh.extend(calls)
             ok.add(name)
             counts[name] = len(calls)
@@ -137,7 +185,9 @@ def main() -> int:
     log(f"Profile: {len(profile['keywords'])} keywords, {len(profile['negative'])} negative, "
         f"last edited by {doc.get('updatedBy', 'config.yaml')}")
 
-    scorer = AiScorer(cfg.get("ai", {}), profile)
+    examples = team_examples(store.load_feedback(), prev, int(cfg.get("ai", {}).get("team_examples", 12)))
+    log(f"Team feedback: {len(examples)} rated calls used as examples for Claude")
+    scorer = AiScorer(cfg.get("ai", {}), profile, examples)
     items = merge(fresh, prev, ok, scorer, profile, cfg.get("retention_days_after_close", 60))
     meta = {"counts": counts, "errors": errors, "total": len(items),
             "ai": {"scored": scorer.used, "inputTokens": scorer.tokens_in, "outputTokens": scorer.tokens_out}}

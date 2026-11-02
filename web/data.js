@@ -100,6 +100,23 @@ export async function createFirebaseStore(config) {
       await F.setDoc(F.doc(db, "notes", encodeId(callId)), { commentCount: F.increment(-1) }, { merge: true });
     },
 
+    // ---- "is this relevant?" ratings: ratings/{callKey}__{email} ----
+    watchRatings(cb) {
+      return F.onSnapshot(F.collection(db, "ratings"), (snap) => {
+        const out = {};
+        snap.forEach((d) => {
+          const r = d.data();
+          (out[r.callId] ||= []).push({ email: r.email, name: r.name || r.email, v: r.v, reason: r.reason || "", at: r.at?.toDate?.().toISOString() || null });
+        });
+        cb(out);
+      });
+    },
+    async saveRating(callId, v, reason = "") {
+      const key = `${encodeId(callId)}__${store.user.email}`;
+      if (v === null) return F.deleteDoc(F.doc(db, "ratings", key));
+      await F.setDoc(F.doc(db, "ratings", key), { callId, callKey: encodeId(callId), email: store.user.email, name: store.user.name || store.user.email, v, reason: String(reason).slice(0, 300), at: F.serverTimestamp() });
+    },
+
     // ---- partners ----
     watchPartners(cb) {
       return F.onSnapshot(F.collection(db, "partners"), (snap) => {
@@ -168,7 +185,7 @@ const decodeId = (id) => id.replace(/∕/g, "/");
 /* ---------------- Demo (browser storage) ---------------- */
 
 export async function createDemoStore() {
-  const KEY = "rv-demo-en-v1";
+  const KEY = "rv-demo-en-v2";
   const base = window.RV_DEMO_DATA || (await (await fetch("demo-data.json")).json());
   const now = Date.now();
   const seed = {
@@ -198,12 +215,20 @@ export async function createDemoStore() {
     ],
     me: { favorites: ["eu:HORIZON-CL5-2027-02-D3-15", "aka:2027-akatemiahankkeet-kaikki-tutkimusalat", "eu:HORIZON-MISS-2027-04-CIT-01"] },
     manual: [],
+    ratings: {
+      "eu:HORIZON-CL5-2027-02-D3-15": [{ email: "matti.meikalainen@turkuamk.fi", name: "Matti Meikäläinen", v: 1, reason: "Core PV topic", at: new Date(now - 2 * 864e5).toISOString() }],
+      "eu:HORIZON-CL5-2027-05-D2-08": [{ email: "maija.meikalainen@turkuamk.fi", name: "Maija Meikäläinen", v: 1, reason: "", at: new Date(now - 2 * 864e5).toISOString() }],
+      "eu:HORIZON-MISS-2027-04-CIT-01": [{ email: "maija.meikalainen@turkuamk.fi", name: "Maija Meikäläinen", v: -1, reason: "Cities mission: needs a city as coordinator, we have none lined up", at: new Date(now - 864e5).toISOString() }],
+      "eura:bbffeaa0-a0da-493e-9793-fb2f6e16a0b3": [{ email: "matti.meikalainen@turkuamk.fi", name: "Matti Meikäläinen", v: -1, reason: "Youth services, not our field", at: new Date(now - 3 * 864e5).toISOString() }],
+      "bf:haku-tutkimusorganisaatio-pk-yritys": [{ email: "maija.meikalainen@turkuamk.fi", name: "Maija Meikäläinen", v: 1, reason: "", at: new Date(now - 864e5).toISOString() }],
+    },
     profile: { ...structuredClone(DEFAULT_PROFILE), updatedBy: "config.yaml", updatedAt: "2026-10-29T03:17:00Z" },
   };
   let st;
   try { st = JSON.parse(localStorage.getItem(KEY)) || seed; } catch { st = seed; }
   st.profile ||= structuredClone(seed.profile);
-  const listeners = { notes: new Set(), partners: new Set(), allow: new Set(), comments: new Map(), profile: new Set() };
+  st.ratings ||= structuredClone(seed.ratings);
+  const listeners = { ratings: new Set(), notes: new Set(), partners: new Set(), allow: new Set(), comments: new Map(), profile: new Set() };
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(st)); } catch { /* storage is optional */ } };
   const emit = (k) => {
     save();
@@ -238,6 +263,13 @@ export async function createDemoStore() {
       st.comments[id] = (st.comments[id] || []).filter((c) => c.id !== cid);
       st.notes[id].commentCount = Math.max(0, (st.notes[id].commentCount || 1) - 1);
       emit("notes"); listeners.comments.get(id)?.();
+    },
+    watchRatings(cb) { return watch(listeners.ratings, cb, st.ratings); },
+    async saveRating(callId, v, reason = "") {
+      const list = (st.ratings[callId] || []).filter((r) => r.email !== store.user.email);
+      if (v !== null) list.push({ email: store.user.email, name: store.user.name, v, reason, at: new Date().toISOString() });
+      st.ratings[callId] = list;
+      save(); listeners.ratings.forEach((cb) => cb(structuredClone(st.ratings)));
     },
     watchPartners(cb) { return watch(listeners.partners, cb, st.partners); },
     async savePartner(p) {

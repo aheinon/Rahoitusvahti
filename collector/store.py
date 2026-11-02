@@ -5,6 +5,8 @@ Data model:
     All calls packed into a few documents, so the app reads the whole list with 1-3 reads
     (well within Firestore's free quota).
 - meta/collector  {lastRun, counts, errors, ai}
+- ratings/{callId}__{email}  {callId, email, v: 1 | 0 | -1, reason, at}
+    Team members' "is this relevant?" answers. The collector shows recent ones to Claude as examples.
 - settings/profile  {organisation, keywords: [{word, weight}], negative: [{word, weight}], updatedAt, updatedBy}
     The relevance profile, edited by admins in the app. Seeded from config.yaml on the first run.
 Team annotations (favourites, tags, comments, partners) live in their own collections,
@@ -51,6 +53,15 @@ class Store:
             return None
         snap = self.db.collection("settings").document("profile").get()
         return snap.to_dict() if snap.exists else None
+
+    def load_feedback(self) -> dict:
+        """The team's relevance ratings (ratings/{callId}__{email}) and pipeline stages (notes/{callId})."""
+        if self.dry:
+            return {"ratings": [], "notes": {}}
+        ratings = [d.to_dict() for d in self.db.collection("ratings").stream()]
+        notes = {d.id.replace("∕", "/"): {"stage": (d.to_dict() or {}).get("stage"), "updatedAt": (d.to_dict() or {}).get("updatedAt")}
+                 for d in self.db.collection("notes").stream()}
+        return {"ratings": ratings, "notes": notes}
 
     def seed_profile(self, doc: dict) -> None:
         if self.dry:
