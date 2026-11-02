@@ -967,6 +967,14 @@ function renderComments() {
 const IDEA_STATUS = [["raw", "Raw idea"], ["developing", "Developing"], ["ready", "Ready to apply"], ["parked", "Parked"]];
 const PIECE_KINDS = [["site", "Pilot site"], ["need", "Need or challenge"], ["resource", "Resource"], ["expertise", "Expertise"], ["partner", "Partner"], ["other", "Other"]];
 const KIND_LABEL = Object.fromEntries(PIECE_KINDS);
+const SCOPES = [["", "Not decided"], ["national", "National"], ["international", "International"], ["both", "National or international"]];
+const SCOPE_LABEL = Object.fromEntries(SCOPES);
+const FUNDER_OPTS = () => Object.keys(SOURCES).filter((k) => k !== "manual");
+/** "International · Horizon Europe, Erasmus+ · Kone Foundation" */
+function fundingLine(i) {
+  const names = [...(i.funders || []).map((k) => SOURCES[k]?.label).filter(Boolean), ...(i.otherFunder ? [i.otherFunder] : [])];
+  return [i.scope ? SCOPE_LABEL[i.scope] : "", names.join(", ")].filter(Boolean).join(" · ");
+}
 const STATUS_LABEL = Object.fromEntries(IDEA_STATUS);
 
 function renderIdeas(v) {
@@ -989,6 +997,7 @@ function renderIdeas(v) {
           <div class="ib-top"><span class="ib-status st-${esc(i.status || "raw")}">${STATUS_LABEL[i.status || "raw"]}</span></div>
           <h3>${esc(i.name)}</h3>
           ${i.description ? `<p>${esc(i.description)}</p>` : `<p class="hint">No description yet.</p>`}
+          ${fundingLine(i) ? `<p class="ib-fund"><b>Funding:</b> ${esc(fundingLine(i))}</p>` : ""}
           ${ps.length ? `<div class="chips">${ps.map((p) => `<span class="tag kind-${esc(p.kind)}" title="${esc(KIND_LABEL[p.kind] || "")}">${esc(p.title)}</span>`).join("")}</div>` : ""}
           ${calls.length ? `<div class="ib-calls">${calls.map((c) => `<button class="linkbtn" data-open="${esc(c.id)}">${esc(c.title)}</button>`).join("")}</div>` : `<p class="hint">No calls linked yet.</p>`}
           <div class="ib-actions"><button class="btn ghost small" data-find-idea="${esc(i.name)}">Find calls</button><button class="btn ghost small" data-edit-idea="${esc(i.name)}">Edit</button></div>
@@ -1021,7 +1030,8 @@ function renderIdeas(v) {
   $$("[data-find-idea]", v).forEach((b) => (b.onclick = () => {
     const i = S.ideaDocs[b.dataset.findIdea] || { name: b.dataset.findIdea };
     const ps = (i.pieces || []).map((id) => S.pieces.find((p) => p.id === id)).filter(Boolean);
-    const text = [i.description || i.name, ps.length ? "Building blocks: " + ps.map((p) => `${KIND_LABEL[p.kind]}: ${p.title}${p.description ? " - " + p.description : ""}`).join("; ") : ""].filter(Boolean).join("\n");
+    const pref = fundingLine(i) ? `Preferred funding: ${fundingLine(i)}.` : "";
+    const text = [i.description || i.name, pref, ps.length ? "Building blocks: " + ps.map((p) => `${KIND_LABEL[p.kind]}: ${p.title}${p.description ? " - " + p.description : ""}`).join("; ") : ""].filter(Boolean).join("\n");
     findCallsFor(text, i.name);
   }));
   $$("[data-find-piece]", v).forEach((b) => (b.onclick = () => {
@@ -1047,7 +1057,14 @@ function openIdeaEditor(name) {
       <div class="field"><label for="ie-name">Name</label><input id="ie-name" name="name" required maxlength="120" value="${esc(i.name)}" ${name ? "disabled" : ""} placeholder="Short name, e.g. Housing company PV + storage">
         ${name ? `<p class="hint">The name links the idea to its calls, so it cannot be changed here.</p>` : ""}</div>
       <div class="field"><label for="ie-desc">Description</label><textarea id="ie-desc" name="description" rows="4" maxlength="2000" placeholder="What would the project do, with whom, and what would it produce?">${esc(i.description || "")}</textarea></div>
-      <div class="field"><label for="ie-status">Status</label><select id="ie-status" name="status" class="sel">${IDEA_STATUS.map(([k, l]) => `<option value="${k}" ${(i.status || "raw") === k ? "selected" : ""}>${l}</option>`).join("")}</select></div>
+      <div class="grid2">
+        <div class="field"><label for="ie-status">Status</label><select id="ie-status" name="status" class="sel">${IDEA_STATUS.map(([k, l]) => `<option value="${k}" ${(i.status || "raw") === k ? "selected" : ""}>${l}</option>`).join("")}</select></div>
+        <div class="field"><label for="ie-scope">National or international</label><select id="ie-scope" name="scope" class="sel">${SCOPES.map(([k, l]) => `<option value="${k}" ${(i.scope || "") === k ? "selected" : ""}>${l}</option>`).join("")}</select></div>
+      </div>
+      <fieldset class="field ib-pick ib-funders"><legend class="lbl">Possible funders</legend>
+        ${FUNDER_OPTS().map((k) => `<label class="check"><input type="checkbox" name="funders" value="${k}" ${(i.funders || []).includes(k) ? "checked" : ""}><i style="background:${SOURCES[k].color}"></i>${esc(SOURCES[k].label)}</label>`).join("")}
+      </fieldset>
+      <div class="field"><label for="ie-other">Other funder (optional)</label><input id="ie-other" name="otherFunder" maxlength="120" value="${esc(i.otherFunder || "")}" placeholder="e.g. a specific foundation or programme"></div>
       <fieldset class="field ib-pick"><legend class="lbl">Pieces it is built from</legend>
         ${S.pieces.length ? S.pieces.map((p) => `<label class="check"><input type="checkbox" name="pieces" value="${esc(p.id)}" ${(i.pieces || []).includes(p.id) ? "checked" : ""}><span class="ib-kind">${esc(KIND_LABEL[p.kind] || "")}</span>${esc(p.title)}</label>`).join("") : `<p class="hint">No pieces yet. Add them on the Ideas page.</p>`}
       </fieldset>
@@ -1060,7 +1077,8 @@ function openIdeaEditor(name) {
     const n = (name || fd.get("name") || "").trim();
     if (!n) return;
     if (!name && S.ideaDocs[n]) { toast("An idea with this name already exists"); return; }
-    await S.store.saveIdea(n, { description: String(fd.get("description") || "").trim(), status: fd.get("status"), pieces: fd.getAll("pieces") });
+    await S.store.saveIdea(n, { description: String(fd.get("description") || "").trim(), status: fd.get("status"), pieces: fd.getAll("pieces"),
+      scope: fd.get("scope") || "", funders: fd.getAll("funders"), otherFunder: String(fd.get("otherFunder") || "").trim() });
     closeModal(); toast("Idea saved");
   };
   $("#ie-del") && ($("#ie-del").onclick = async () => {

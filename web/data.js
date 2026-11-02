@@ -210,7 +210,7 @@ const decodeId = (id) => id.replace(/∕/g, "/");
 /* ---------------- Demo (browser storage) ---------------- */
 
 export async function createDemoStore() {
-  const KEY = "rv-demo-en-v3";
+  const KEY = "rv-demo-en-v4";
   const base = window.RV_DEMO_DATA || (await (await fetch("demo-data.json")).json());
   const now = Date.now();
   const seed = {
@@ -241,8 +241,8 @@ export async function createDemoStore() {
     me: { favorites: ["eu:HORIZON-CL5-2027-02-D3-15", "aka:2027-akatemiahankkeet-kaikki-tutkimusalat", "eu:HORIZON-MISS-2027-04-CIT-01"] },
     manual: [],
     ideas: {
-      "PV-Factory pilot line": { name: "PV-Factory pilot line", status: "developing", pieces: ["pc2"], description: "A pilot line at Turku UAS for testing new PV module production steps with Finnish SMEs, with students doing the test runs and quality measurements." },
-      "Housing company PV + storage": { name: "Housing company PV + storage", status: "raw", pieces: ["pc1"], description: "A pilot where a housing company shares rooftop PV and a battery between apartments, with vocational students doing the installation and monitoring." },
+      "PV-Factory pilot line": { name: "PV-Factory pilot line", status: "developing", scope: "international", funders: ["horizon", "cetp"], pieces: ["pc2"], description: "A pilot line at Turku UAS for testing new PV module production steps with Finnish SMEs, with students doing the test runs and quality measurements." },
+      "Housing company PV + storage": { name: "Housing company PV + storage", status: "raw", scope: "national", funders: ["bf", "eura"], pieces: ["pc1"], description: "A pilot where a housing company shares rooftop PV and a battery between apartments, with vocational students doing the installation and monitoring." },
     },
     pieces: [
       { id: "pc1", kind: "site", title: "1960s terraced housing company in Turku (example)", description: "16 apartments, roof renovation planned for 2028; the board is interested in PV and a shared battery.", contact: "Board chair (example)", tags: ["PV", "battery", "housing"], broughtBy: "maija.meikalainen@turkuamk.fi" },

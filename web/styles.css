@@ -489,3 +489,10 @@ button.tag.new:hover { filter: brightness(.94); }
 .ib-actions { display: flex; gap: 6px; margin-top: auto; padding-top: 6px; }
 .ib-pick { border: 0; padding: 0; margin: 0 0 14px; display: grid; gap: 4px; max-height: 220px; overflow: auto; }
 .ib-pick .ib-kind { margin-right: 6px; font-size: 11px; }
+.ib-fund { font-size: 13px !important; }
+.ib-fund b { color: var(--ink); font-weight: 600; }
+.ib-funders { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); max-height: none; }
+.ib-funders i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; margin-right: 2px; flex: none; }
+.ib-pick .check { display: flex; align-items: center; gap: 8px; font-size: 14px; margin: 0; }
+.ib-pick input[type="checkbox"] { width: auto; min-height: 0; margin: 0; flex: none; }
+.modal .hint { font-size: 13px; color: var(--ink-2); margin: 4px 0 0; }
