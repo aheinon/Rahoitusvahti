@@ -51,11 +51,14 @@ GitHub Actions (nightly)                 GitHub Pages (web/)
 - **Ideas** (team only): an idea bank of project ideas (raw → developing → ready to apply) and the pieces
   they could be built from: pilot sites, needs or challenges, resources such as equipment or data,
   expertise and partners. Any idea or piece can be sent to the idea search with *Find calls*.
-- **Network** (team only): every organisation Turku UAS has worked with in Horizon Europe and Horizon 2020
-  projects (CORDIS open data, updated weekly by `collector/network.py`), on a map and in a list, with
-  counts by country and type and a CSV download. Tick the projects NERC took part in to see *our*
-  partners; the rest of Turku UAS's partners form the outer ring. Projects outside CORDIS (Erasmus+,
-  Interreg, ERDF, Business Finland ...) are added by hand with their partners.
+- **Partners** (team only): one page for everyone we have worked with or would like to work with, on a
+  map and in a list, with counts by country and type and a CSV download. Each organisation is *worked
+  with us* (NERC's projects), *worked with Turku UAS* (the university's other EU projects, from CORDIS,
+  updated weekly by `collector/network.py`) or a *potential partner* added by the team. Choosing a
+  project highlights its consortium. An organisation's card shows the projects together, the calls it
+  is linked to and the team's notes (contact, expertise). On the *Projects* tab the team ticks NERC's
+  EU projects and adds other projects (Erasmus+, Interreg, ERDF, Business Finland ...) with partners.
+  In a call's details, *Potential partners* can be picked from all of these.
 - **Who won similar calls**: for every Horizon Europe call, the funded projects closest to it (same topic
   in earlier rounds, or most similar by text) with their consortia. Organisations you have worked with or
   have on the partner list are highlighted.
@@ -65,7 +68,6 @@ GitHub Actions (nightly)                 GitHub Pages (web/)
   Funded/Rejected), people involved in preparation, potential partners, tags, comments with @mentions.
 - **Favourites** are personal. Their deadlines can be downloaded to a calendar (.ics, reminder a week before).
 - **Pipeline**: calls by stage, with the project idea shown on each card.
-- **Partners**: a shared list and which calls each partner is linked to.
 - **Profile**: the team description Claude uses for scoring and idea search, plus weighted keywords.
   Everyone can see it; admins edit it in the app. A changed description makes Claude re-assess all calls
   on the next nightly run (about $0.25).

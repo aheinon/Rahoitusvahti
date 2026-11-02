@@ -534,3 +534,20 @@ button.tag.new:hover { filter: brightness(.94); }
 .net-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13px; color: var(--ink-2); margin: 8px 0 2px; }
 .net-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; }
 .net-legend i.ring { background: transparent; box-shadow: 0 0 0 2.5px var(--sun) inset; }
+.net-rels { display: flex; flex-wrap: wrap; gap: 4px 16px; }
+.net-rels .check { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; margin: 0; }
+.net-rels i, .reldot, .net-legend i.lg-nerc, .net-legend i.lg-tuas, .net-legend i.lg-pot { display: inline-block; width: 11px; height: 11px; border-radius: 50%; flex: none; }
+.rel-nerc i, .reldot.rel-nerc, .lg-nerc { background: var(--src-bf); box-shadow: 0 0 0 2px var(--sun); }
+.rel-tuas i, .reldot.rel-tuas, .lg-tuas { background: color-mix(in srgb, var(--src-eu) 45%, var(--surface)); border: 1px solid var(--src-eu); }
+.rel-potential i, .reldot.rel-potential, .lg-pot { background: var(--surface); border: 2px dashed var(--src-cetp); }
+.reldot { margin-right: 7px; vertical-align: -1px; }
+.net-filters { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 10px; margin-bottom: 12px; }
+.net-filters .search { width: 100%; margin: 0; }
+.net-page .ib-head h1 { margin: 0; flex: 1; }
+.net-page > .seg { margin: 10px 0 6px; }
+.org-sub { display: flex; align-items: center; flex-wrap: wrap; margin-top: -6px !important; }
+.org-projects { margin: 0; padding-left: 18px; font-size: 14px; display: grid; gap: 3px; }
+.org-h { font-size: 15px; margin: 16px 0 8px; padding-top: 12px; border-top: 1px solid var(--line-2); }
+tr.click { cursor: pointer; }
+tr.click:hover { background: var(--hover); }
+@media (max-width: 640px) { .net-filters { grid-template-columns: 1fr; } }
