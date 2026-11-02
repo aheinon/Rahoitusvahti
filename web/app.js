@@ -98,7 +98,7 @@ const safeUrl = (u) => (/^https?:\/\//i.test(String(u || "").trim()) ? String(u)
 const S = {
   store: null,
   calls: [], byId: new Map(), meta: {},
-  notes: {}, ratings: {}, ideaDocs: {}, develop: {}, partners: [], allow: [], me: { favorites: [] }, profile: undefined, profileDraft: null,
+  notes: {}, ratings: {}, ideaDocs: {}, pieces: [], pieceKind: "", develop: {}, partners: [], allow: [], me: { favorites: [] }, profile: undefined, profileDraft: null,
   view: LS.get("rv-view", "list"),
   filters: migrateFilters(Object.assign({}, DEFAULT_FILTERS, LS.get("rv-filters", {}))),
   sort: LS.get("rv-sort", "deadline"),
@@ -129,7 +129,7 @@ function allTags() {
   return [...set].sort((a, b) => a.localeCompare(b, "en"));
 }
 function allIdeas() {
-  const set = new Set();
+  const set = new Set(Object.keys(S.ideaDocs || {}));
   Object.values(S.notes).forEach((n) => n.idea && set.add(n.idea));
   return [...set].sort((a, b) => a.localeCompare(b, "en"));
 }
@@ -159,7 +159,10 @@ async function loadAll() {
   S.store.watchNotes((n) => { S.notes = n; refresh(); });
   S.store.watchPartners((p) => { S.partners = p; refresh(); });
   S.store.watchRatings((r) => { S.ratings = r || {}; refresh(); });
-  S.store.watchIdeas((d) => { S.ideaDocs = d || {}; if (S.openId) renderDrawerBody(); });
+  if (isMember()) {
+    S.store.watchIdeas((d) => { S.ideaDocs = d || {}; if (S.view === "ideas") refresh(); else if (S.openId) renderDrawerBody(); });
+    S.store.watchPieces((p) => { S.pieces = p || []; if (S.view === "ideas") refresh(); });
+  }
   S.store.watchAllow((a) => { S.allow = a; refresh(); });
   S.store.watchProfile((p) => { S.profile = p; if (S.view === "profile" && !S.profileDraft) refresh(); });
   renderShell();
@@ -211,8 +214,8 @@ function renderDenied(email) {
 
 function renderShell() {
   const u = S.store.user;
-  const tabs = [["list", "Calls"], ["board", "Pipeline"], ["partners", "Partners"], ["profile", "Profile"]].concat(isAdmin() ? [["users", "Users"]] : []);
-  if (S.view === "users" && !isAdmin()) S.view = "list";
+  const tabs = [["list", "Calls"]].concat(isMember() ? [["ideas", "Ideas"]] : []).concat([["board", "Pipeline"]]).concat([ ["partners", "Partners"], ["profile", "Profile"]]).concat(isAdmin() ? [["users", "Users"]] : []);
+  if ((S.view === "users" && !isAdmin()) || (S.view === "ideas" && !isMember())) S.view = "list";
   $("#app").innerHTML = `
   ${S.store.mode === "demo" ? `<div class="demo-band"><span>Demo: a sample of ${S.calls.length} real calls collected on 29 Oct and 2 Nov 2026 (the full service tracks several hundred). Your changes are saved in this browser only. AI summaries and reasons on the calls are examples.</span><button id="demo-reset">Reset demo</button></div>` : ""}
   <header class="top">
@@ -234,6 +237,7 @@ function refresh() {
   if (!v) return;
   if (S.view === "list") renderListView(v);
   else if (S.view === "board") renderBoard(v);
+  else if (S.view === "ideas") renderIdeas(v);
   else if (S.view === "partners") renderPartners(v);
   else if (S.view === "users") renderUsers(v);
   else if (S.view === "profile") renderProfile(v);
@@ -956,6 +960,145 @@ function renderComments() {
       <p>${fmt(c.text)}</p>
     </div>`).join("") : `<p class="summary" style="margin:0">No comments yet.</p>`;
   $$("[data-cdel]", el).forEach((b) => (b.onclick = async () => { if (await askConfirm("Delete this comment?")) S.store.deleteComment(S.openId, b.dataset.cdel); }));
+}
+
+/* ================= Idea bank ================= */
+
+const IDEA_STATUS = [["raw", "Raw idea"], ["developing", "Developing"], ["ready", "Ready to apply"], ["parked", "Parked"]];
+const PIECE_KINDS = [["site", "Pilot site"], ["need", "Need or challenge"], ["resource", "Resource"], ["expertise", "Expertise"], ["partner", "Partner"], ["other", "Other"]];
+const KIND_LABEL = Object.fromEntries(PIECE_KINDS);
+const STATUS_LABEL = Object.fromEntries(IDEA_STATUS);
+
+function renderIdeas(v) {
+  const ideas = allIdeas().map((name) => ({ name, ...(S.ideaDocs[name] || {}) }));
+  const callsOf = (name) => Object.entries(S.notes).filter(([, n]) => n.idea === name).map(([id]) => S.byId.get(id)).filter(Boolean);
+  const ideasUsing = (pid) => ideas.filter((i) => (i.pieces || []).includes(pid)).map((i) => i.name);
+  const pieces = [...S.pieces].filter((p) => !S.pieceKind || p.kind === S.pieceKind)
+    .sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+  const order = Object.fromEntries(IDEA_STATUS.map(([k], i) => [k, i]));
+  ideas.sort((a, b) => (order[a.status || "raw"] - order[b.status || "raw"]) || a.name.localeCompare(b.name, "en"));
+  v.innerHTML = `<div class="page ideas-page">
+    <h1>Ideas</h1>
+    <p>Project ideas, and the pieces they could be built from: pilot sites, companies' needs, our equipment and data, expertise and partners. Collect pieces as soon as they come up, even if there is no project yet, and ask Claude which calls they could fit. Only the team sees this page.</p>
+    <section class="ib-block">
+      <div class="ib-head"><h2>Project ideas <span>${ideas.length}</span></h2><button class="btn" id="new-idea">New idea</button></div>
+      ${ideas.length ? `<div class="ib-grid">${ideas.map((i) => {
+        const calls = callsOf(i.name);
+        const ps = (i.pieces || []).map((id) => S.pieces.find((p) => p.id === id)).filter(Boolean);
+        return `<article class="ib-card idea-card" data-idea="${esc(i.name)}">
+          <div class="ib-top"><span class="ib-status st-${esc(i.status || "raw")}">${STATUS_LABEL[i.status || "raw"]}</span></div>
+          <h3>${esc(i.name)}</h3>
+          ${i.description ? `<p>${esc(i.description)}</p>` : `<p class="hint">No description yet.</p>`}
+          ${ps.length ? `<div class="chips">${ps.map((p) => `<span class="tag kind-${esc(p.kind)}" title="${esc(KIND_LABEL[p.kind] || "")}">${esc(p.title)}</span>`).join("")}</div>` : ""}
+          ${calls.length ? `<div class="ib-calls">${calls.map((c) => `<button class="linkbtn" data-open="${esc(c.id)}">${esc(c.title)}</button>`).join("")}</div>` : `<p class="hint">No calls linked yet.</p>`}
+          <div class="ib-actions"><button class="btn ghost small" data-find-idea="${esc(i.name)}">Find calls</button><button class="btn ghost small" data-edit-idea="${esc(i.name)}">Edit</button></div>
+        </article>`;
+      }).join("")}</div>` : `<div class="empty"><b>No ideas yet</b>Add one with New idea, or give an idea a name in the idea search on the Calls page.</div>`}
+    </section>
+    <section class="ib-block">
+      <div class="ib-head"><h2>Pieces <span>${S.pieces.length}</span></h2><button class="btn" id="new-piece">New piece</button></div>
+      <div class="seg ib-kinds" role="group" aria-label="Show pieces of type"><button data-kind="" aria-pressed="${!S.pieceKind}">All</button>${PIECE_KINDS.map(([k, l]) => `<button data-kind="${k}" aria-pressed="${S.pieceKind === k}">${l} <span class="n">${S.pieces.filter((p) => p.kind === k).length}</span></button>`).join("")}</div>
+      ${pieces.length ? `<div class="ib-grid">${pieces.map((p) => {
+        const used = ideasUsing(p.id);
+        return `<article class="ib-card piece-card kind-${esc(p.kind)}">
+          <div class="ib-top"><span class="ib-kind">${esc(KIND_LABEL[p.kind] || "Piece")}</span><span class="hint">${esc(personName(p.broughtBy || "").split(" ")[0] || "")}</span></div>
+          <h3>${esc(p.title)}</h3>
+          ${p.description ? `<p>${esc(p.description)}</p>` : ""}
+          ${p.contact ? `<p class="hint">Contact: ${esc(p.contact)}</p>` : ""}
+          ${(p.tags || []).length ? `<div class="chips">${p.tags.map((t) => `<span class="tag">${esc(t)}</span>`).join("")}</div>` : ""}
+          ${used.length ? `<p class="hint">Used in: ${used.map(esc).join(", ")}</p>` : ""}
+          <div class="ib-actions"><button class="btn ghost small" data-find-piece="${esc(p.id)}">Find calls</button><button class="btn ghost small" data-edit-piece="${esc(p.id)}">Edit</button></div>
+        </article>`;
+      }).join("")}</div>` : `<div class="empty"><b>No pieces ${S.pieceKind ? "of this type " : ""}yet</b>A piece can be a possible pilot site, a company's problem, a device or dataset we have, or a partner's expertise.</div>`}
+    </section>
+  </div>`;
+  $("#new-idea").onclick = () => openIdeaEditor(null);
+  $("#new-piece").onclick = () => openPieceEditor(null);
+  $$("[data-edit-idea]", v).forEach((b) => (b.onclick = () => openIdeaEditor(b.dataset.editIdea)));
+  $$("[data-edit-piece]", v).forEach((b) => (b.onclick = () => openPieceEditor(b.dataset.editPiece)));
+  $$("[data-open]", v).forEach((b) => (b.onclick = () => openDrawer(b.dataset.open)));
+  $$("[data-kind]", v).forEach((b) => (b.onclick = () => { S.pieceKind = b.dataset.kind; refresh(); }));
+  $$("[data-find-idea]", v).forEach((b) => (b.onclick = () => {
+    const i = S.ideaDocs[b.dataset.findIdea] || { name: b.dataset.findIdea };
+    const ps = (i.pieces || []).map((id) => S.pieces.find((p) => p.id === id)).filter(Boolean);
+    const text = [i.description || i.name, ps.length ? "Building blocks: " + ps.map((p) => `${KIND_LABEL[p.kind]}: ${p.title}${p.description ? " - " + p.description : ""}`).join("; ") : ""].filter(Boolean).join("\n");
+    findCallsFor(text, i.name);
+  }));
+  $$("[data-find-piece]", v).forEach((b) => (b.onclick = () => {
+    const p = S.pieces.find((x) => x.id === b.dataset.findPiece);
+    findCallsFor(`${KIND_LABEL[p.kind]} that a project could be built around: ${p.title}. ${p.description || ""}`.trim(), "");
+  }));
+}
+
+/** Opens the idea search on the Calls page with this text and runs it. */
+function findCallsFor(text, name) {
+  Object.assign(S.idea, { text: text.slice(0, 2000), name, open: true });
+  LS.set("rv-idea-text", S.idea.text); LS.set("rv-idea-name", name); LS.set("rv-idea-open", true);
+  S.view = "list"; LS.set("rv-view", "list"); renderShell();
+  window.scrollTo({ top: 0 });
+  if (S.store.ideaSearchAvailable()) runIdeaSearch();
+}
+
+function openIdeaEditor(name) {
+  const i = name ? { name, ...(S.ideaDocs[name] || {}) } : { name: "", description: "", status: "raw", pieces: [] };
+  const linked = name ? Object.values(S.notes).filter((n) => n.idea === name).length : 0;
+  modal(`<h2>${name ? "Edit idea" : "New idea"}</h2>
+    <form id="ideaform">
+      <div class="field"><label for="ie-name">Name</label><input id="ie-name" name="name" required maxlength="120" value="${esc(i.name)}" ${name ? "disabled" : ""} placeholder="Short name, e.g. Housing company PV + storage">
+        ${name ? `<p class="hint">The name links the idea to its calls, so it cannot be changed here.</p>` : ""}</div>
+      <div class="field"><label for="ie-desc">Description</label><textarea id="ie-desc" name="description" rows="4" maxlength="2000" placeholder="What would the project do, with whom, and what would it produce?">${esc(i.description || "")}</textarea></div>
+      <div class="field"><label for="ie-status">Status</label><select id="ie-status" name="status" class="sel">${IDEA_STATUS.map(([k, l]) => `<option value="${k}" ${(i.status || "raw") === k ? "selected" : ""}>${l}</option>`).join("")}</select></div>
+      <fieldset class="field ib-pick"><legend class="lbl">Pieces it is built from</legend>
+        ${S.pieces.length ? S.pieces.map((p) => `<label class="check"><input type="checkbox" name="pieces" value="${esc(p.id)}" ${(i.pieces || []).includes(p.id) ? "checked" : ""}><span class="ib-kind">${esc(KIND_LABEL[p.kind] || "")}</span>${esc(p.title)}</label>`).join("") : `<p class="hint">No pieces yet. Add them on the Ideas page.</p>`}
+      </fieldset>
+      <div class="foot">${name ? `<button type="button" class="btn danger" id="ie-del">Delete</button>` : ""}<span style="flex:1"></span>
+        <button type="button" class="btn ghost" data-close>Cancel</button><button class="btn" type="submit">Save</button></div>
+    </form>`);
+  $("#ideaform").onsubmit = async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const n = (name || fd.get("name") || "").trim();
+    if (!n) return;
+    if (!name && S.ideaDocs[n]) { toast("An idea with this name already exists"); return; }
+    await S.store.saveIdea(n, { description: String(fd.get("description") || "").trim(), status: fd.get("status"), pieces: fd.getAll("pieces") });
+    closeModal(); toast("Idea saved");
+  };
+  $("#ie-del") && ($("#ie-del").onclick = async () => {
+    if (!(await askConfirm(linked ? `Delete “${name}”? ${linked} linked ${linked === 1 ? "call keeps" : "calls keep"} the idea name in their notes.` : `Delete “${name}”?`))) return;
+    await S.store.deleteIdea(name); closeModal(); toast("Idea deleted");
+  });
+}
+
+function openPieceEditor(id) {
+  const p = id ? S.pieces.find((x) => x.id === id) : { kind: S.pieceKind || "site", title: "", description: "", contact: "", tags: [] };
+  modal(`<h2>${id ? "Edit piece" : "New piece"}</h2>
+    <form id="pieceform">
+      <div class="grid2">
+        <div class="field"><label for="pc-kind">Type</label><select id="pc-kind" name="kind" class="sel">${PIECE_KINDS.map(([k, l]) => `<option value="${k}" ${p.kind === k ? "selected" : ""}>${l}</option>`).join("")}</select></div>
+        <div class="field"><label for="pc-title">Title</label><input id="pc-title" name="title" required maxlength="140" value="${esc(p.title)}" placeholder="e.g. Solar park in Kemiönsaari"></div>
+      </div>
+      <div class="field"><label for="pc-desc">Description</label><textarea id="pc-desc" name="description" rows="4" maxlength="1500" placeholder="What is it, what could a project do with it, any timing or conditions">${esc(p.description || "")}</textarea></div>
+      <div class="grid2">
+        <div class="field"><label for="pc-contact">Contact (optional)</label><input id="pc-contact" name="contact" maxlength="140" value="${esc(p.contact || "")}" placeholder="Who knows more"></div>
+        <div class="field"><label for="pc-tags">Tags (comma separated)</label><input id="pc-tags" name="tags" maxlength="200" value="${esc((p.tags || []).join(", "))}" placeholder="PV, battery"></div>
+      </div>
+      <p class="hint">Contacts are personal data: write only what the team needs, and leave out private details.</p>
+      <div class="foot">${id ? `<button type="button" class="btn danger" id="pc-del">Delete</button>` : ""}<span style="flex:1"></span>
+        <button type="button" class="btn ghost" data-close>Cancel</button><button class="btn" type="submit">Save</button></div>
+    </form>`);
+  $("#pieceform").onsubmit = async (e) => {
+    e.preventDefault();
+    const d = Object.fromEntries(new FormData(e.target));
+    await S.store.savePiece({ ...(id ? { id } : {}), kind: d.kind, title: d.title.trim(), description: d.description.trim(), contact: d.contact.trim(),
+      tags: d.tags.split(",").map((t) => t.trim()).filter(Boolean).slice(0, 8) });
+    closeModal(); toast("Piece saved");
+  };
+  $("#pc-del") && ($("#pc-del").onclick = async () => {
+    if (!(await askConfirm(`Delete “${p.title}”?`))) return;
+    await S.store.deletePiece(id);
+    for (const i of Object.values(S.ideaDocs)) if ((i.pieces || []).includes(id)) await S.store.saveIdea(i.name, { pieces: i.pieces.filter((x) => x !== id) });
+    closeModal(); toast("Piece deleted");
+  });
 }
 
 /* ================= Pipeline ================= */

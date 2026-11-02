@@ -43,10 +43,13 @@ service cloud.firestore {
     match /meta/{doc}  { allow read: if allowed(); allow write: if false; }
     match /texts/{doc} { allow read: if allowed(); allow write: if false; }   // full call texts for Claude
 
-    // Shared project idea descriptions (used by Claude's analysis of an idea for a call)
+    // Idea bank: project ideas and their building blocks (pilot sites, needs, resources ...).
+    // Team only - partners do not see it.
     match /ideas/{id} {
-      allow read: if allowed();
-      allow write: if isMember();
+      allow read, write: if isMember();
+    }
+    match /pieces/{id} {
+      allow read, write: if isMember();
     }
 
     // Calls added by the team

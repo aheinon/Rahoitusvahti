@@ -459,3 +459,33 @@ button.tag.new:hover { filter: brightness(.94); }
 .dev-result h4 { font-size: 13px; text-transform: none; margin: 14px 0 4px; }
 .dev-result ul, .dev-result ol { margin: 0; padding-left: 20px; font-size: 14px; display: grid; gap: 3px; }
 .dev-result .btn { margin-top: 12px; }
+
+/* ---------- Idea bank ---------- */
+.ideas-page { max-width: 1180px; }
+.ib-block { margin-top: 26px; }
+.ib-head { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+.ib-head h2 { margin: 0; font-size: 18px; flex: 1; }
+.ib-head h2 span { color: var(--ink-3); font-weight: 500; font-size: 14px; margin-left: 4px; }
+.ib-kinds { margin-bottom: 12px; }
+.ib-kinds .n { color: inherit; opacity: .65; font-size: 12px; margin-left: 2px; }
+.ib-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+.ib-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; }
+.ib-card h3 { margin: 0; font-size: 16px; line-height: 1.3; overflow-wrap: anywhere; }
+.ib-card p { margin: 0; font-size: 14px; color: var(--ink-2); line-height: 1.45; }
+.ib-card .hint { font-size: 13px; color: var(--ink-3); }
+.ib-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.ib-status, .ib-kind { font-size: 12px; font-weight: 650; text-transform: uppercase; letter-spacing: .03em; color: var(--ink-2); }
+.ib-status.st-developing { color: var(--soon); }
+.ib-status.st-ready { color: var(--src-bf); }
+.ib-status.st-parked { color: var(--ink-3); }
+.piece-card { border-left: 4px solid var(--ink-3); }
+.piece-card.kind-site { border-left-color: var(--src-maaseutu); }
+.piece-card.kind-need { border-left-color: var(--src-cetp); }
+.piece-card.kind-resource { border-left-color: var(--src-eu); }
+.piece-card.kind-expertise { border-left-color: var(--src-aka); }
+.piece-card.kind-partner { border-left-color: var(--src-bf); }
+.ib-calls { display: grid; gap: 2px; font-size: 13px; }
+.ib-calls .linkbtn { text-align: left; }
+.ib-actions { display: flex; gap: 6px; margin-top: auto; padding-top: 6px; }
+.ib-pick { border: 0; padding: 0; margin: 0 0 14px; display: grid; gap: 4px; max-height: 220px; overflow: auto; }
+.ib-pick .ib-kind { margin-right: 6px; font-size: 11px; }

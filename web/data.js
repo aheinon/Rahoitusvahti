@@ -150,15 +150,28 @@ export async function createFirebaseStore(config) {
       await F.setDoc(F.doc(db, "settings", "profile"), { ...p, updatedBy: store.user.name || store.user.email, updatedAt: F.serverTimestamp() });
     },
 
-    // ---- shared project idea descriptions: ideas/{name in lower case} ----
+    // ---- idea bank (team only): ideas/{name in lower case}, pieces/{id} ----
     watchIdeas(cb) {
       return F.onSnapshot(F.collection(db, "ideas"), (snap) => {
         const out = {}; snap.forEach((d) => { const x = d.data(); out[x.name] = x; }); cb(out);
-      });
+      }, () => cb({}));
     },
-    async saveIdea(name, description) {
-      await F.setDoc(F.doc(db, "ideas", encodeId(name.toLowerCase())), { name, description, updatedBy: store.user.email, updatedAt: F.serverTimestamp() }, { merge: true });
+    async saveIdea(name, patch) {
+      if (typeof patch === "string") patch = { description: patch };
+      await F.setDoc(F.doc(db, "ideas", encodeId(name.toLowerCase())), { ...patch, name, updatedBy: store.user.email, updatedAt: F.serverTimestamp() }, { merge: true });
     },
+    async deleteIdea(name) { await F.deleteDoc(F.doc(db, "ideas", encodeId(name.toLowerCase()))); },
+    watchPieces(cb) {
+      return F.onSnapshot(F.collection(db, "pieces"), (snap) => {
+        const out = []; snap.forEach((d) => out.push({ id: d.id, ...d.data() })); cb(out);
+      }, () => cb([]));
+    },
+    async savePiece(p) {
+      const { id, ...data } = p;
+      if (id) { await F.setDoc(F.doc(db, "pieces", id), { ...data, updatedAt: F.serverTimestamp() }, { merge: true }); return id; }
+      return (await F.addDoc(F.collection(db, "pieces"), { ...data, broughtBy: store.user.email, createdAt: F.serverTimestamp() })).id;
+    },
+    async deletePiece(id) { await F.deleteDoc(F.doc(db, "pieces", id)); },
 
     // ---- idea search and idea analysis (Cloudflare Worker holds the Claude API key) ----
     ideaSearchAvailable() { return !!window.RV_CONFIG?.ideaSearchUrl; },
@@ -197,7 +210,7 @@ const decodeId = (id) => id.replace(/∕/g, "/");
 /* ---------------- Demo (browser storage) ---------------- */
 
 export async function createDemoStore() {
-  const KEY = "rv-demo-en-v2";
+  const KEY = "rv-demo-en-v3";
   const base = window.RV_DEMO_DATA || (await (await fetch("demo-data.json")).json());
   const now = Date.now();
   const seed = {
@@ -228,9 +241,14 @@ export async function createDemoStore() {
     me: { favorites: ["eu:HORIZON-CL5-2027-02-D3-15", "aka:2027-akatemiahankkeet-kaikki-tutkimusalat", "eu:HORIZON-MISS-2027-04-CIT-01"] },
     manual: [],
     ideas: {
-      "PV-Factory pilot line": { name: "PV-Factory pilot line", description: "A pilot line at Turku UAS for testing new PV module production steps with Finnish SMEs, with students doing the test runs and quality measurements." },
-      "Housing company PV + storage": { name: "Housing company PV + storage", description: "A pilot where a housing company shares rooftop PV and a battery between apartments, with vocational students doing the installation and monitoring." },
+      "PV-Factory pilot line": { name: "PV-Factory pilot line", status: "developing", pieces: ["pc2"], description: "A pilot line at Turku UAS for testing new PV module production steps with Finnish SMEs, with students doing the test runs and quality measurements." },
+      "Housing company PV + storage": { name: "Housing company PV + storage", status: "raw", pieces: ["pc1"], description: "A pilot where a housing company shares rooftop PV and a battery between apartments, with vocational students doing the installation and monitoring." },
     },
+    pieces: [
+      { id: "pc1", kind: "site", title: "1960s terraced housing company in Turku (example)", description: "16 apartments, roof renovation planned for 2028; the board is interested in PV and a shared battery.", contact: "Board chair (example)", tags: ["PV", "battery", "housing"], broughtBy: "maija.meikalainen@turkuamk.fi" },
+      { id: "pc2", kind: "resource", title: "Electroluminescence imaging set-up (example)", description: "Drone and lab EL/PL imaging for PV module inspection.", contact: "", tags: ["PV", "inspection"], broughtBy: "demo@turkuamk.fi" },
+      { id: "pc3", kind: "need", title: "Local SME needs battery ageing data (example)", description: "A battery integrator wants field data on how home batteries age in Finnish conditions.", contact: "", tags: ["battery"], broughtBy: "matti.meikalainen@turkuamk.fi" },
+    ],
     ratings: {
       "eu:HORIZON-CL5-2027-02-D3-15": [{ email: "matti.meikalainen@turkuamk.fi", name: "Matti Meikäläinen", v: 1, reason: "Core PV topic", at: new Date(now - 2 * 864e5).toISOString() }],
       "eu:HORIZON-CL5-2027-05-D2-08": [{ email: "maija.meikalainen@turkuamk.fi", name: "Maija Meikäläinen", v: 1, reason: "", at: new Date(now - 2 * 864e5).toISOString() }],
@@ -245,7 +263,8 @@ export async function createDemoStore() {
   st.profile ||= structuredClone(seed.profile);
   st.ratings ||= structuredClone(seed.ratings);
   st.ideas ||= structuredClone(seed.ideas);
-  const listeners = { ideas: new Set(), ratings: new Set(), notes: new Set(), partners: new Set(), allow: new Set(), comments: new Map(), profile: new Set() };
+  st.pieces ||= structuredClone(seed.pieces);
+  const listeners = { pieces: new Set(), ideas: new Set(), ratings: new Set(), notes: new Set(), partners: new Set(), allow: new Set(), comments: new Map(), profile: new Set() };
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(st)); } catch { /* storage is optional */ } };
   const emit = (k) => {
     save();
@@ -283,10 +302,19 @@ export async function createDemoStore() {
     },
     watchRatings(cb) { return watch(listeners.ratings, cb, st.ratings); },
     watchIdeas(cb) { return watch(listeners.ideas, cb, st.ideas); },
-    async saveIdea(name, description) {
-      st.ideas[name] = { name, description, updatedBy: store.user.email };
+    async saveIdea(name, patch) {
+      if (typeof patch === "string") patch = { description: patch };
+      st.ideas[name] = { ...(st.ideas[name] || {}), ...patch, name, updatedBy: store.user.email };
       save(); listeners.ideas.forEach((cb) => cb(structuredClone(st.ideas)));
     },
+    async deleteIdea(name) { delete st.ideas[name]; save(); listeners.ideas.forEach((cb) => cb(structuredClone(st.ideas))); },
+    watchPieces(cb) { return watch(listeners.pieces, cb, st.pieces); },
+    async savePiece(p) {
+      if (p.id) st.pieces = st.pieces.map((x) => (x.id === p.id ? { ...x, ...p } : x));
+      else { p = { ...p, id: "pc" + Date.now(), broughtBy: store.user.email, createdAt: new Date().toISOString() }; st.pieces.push(p); }
+      save(); listeners.pieces.forEach((cb) => cb(structuredClone(st.pieces))); return p.id;
+    },
+    async deletePiece(id) { st.pieces = st.pieces.filter((x) => x.id !== id); save(); listeners.pieces.forEach((cb) => cb(structuredClone(st.pieces))); },
     // Analysis of a linked idea for one call: Claude through the artifact viewer when available.
     async developIdea({ callId, ideaName, idea, call, callText, signal }) {
       const sample = window.claude?.use ? await window.claude.use("sample").catch(() => null) : null;

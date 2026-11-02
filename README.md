@@ -42,6 +42,15 @@ GitHub Actions (nightly)                 GitHub Pages (web/)
 - **Find calls for an idea**: describe a topic or project idea in a few sentences; Claude compares it
   with every open and upcoming call and suggests up to 8, each with a fit score, why it fits and how
   to frame the idea for that call. Suggested calls can be linked to the idea with one click.
+- **Idea search also suggests how to strengthen the idea**: 3-5 concrete points based on what the
+  matched calls expect.
+- **Develop an idea for a call**: when a call is linked to a project idea, Claude reads the call's full
+  text (saved by the collector to `texts/{id}`) and the idea description, and gives a fit score, what
+  already fits, gaps, partners and roles needed, risks and next steps. The result can be posted to the
+  call's comments.
+- **Ideas** (team only): an idea bank of project ideas (raw → developing → ready to apply) and the pieces
+  they could be built from: pilot sites, needs or challenges, resources such as equipment or data,
+  expertise and partners. Any idea or piece can be sent to the idea search with *Find calls*.
 - **Call details**: opening date and deadlines, identifier, type of action, region, Claude's relevance
   assessment and reason, link to the funder's page.
 - **Team notes** (shared by everyone): project idea, stage (Watching → Preparing → Submitted →
