@@ -14,7 +14,7 @@ window.RV_CONFIG = {
   // Add ?demo to the address to open the demo data instead of the live service.
   // Address of the idea search worker (see worker/README in the main README).
   // Leave empty to hide the idea search.
-  ideaSearchUrl: "",
+  ideaSearchUrl: "https://rahoitusvahti-ideat.aleksi-heinonen.workers.dev",
   appName: "Rahoitusvahti",
   orgName: "NERC · Turku UAS",
 };
