@@ -6,9 +6,11 @@
 // 2. applies an optional daily per-user limit (KV binding USAGE),
 // 3. reads the team description from settings/profile (also with the user's token),
 //    builds the prompt from the idea + the call list and asks Claude,
-// 4. returns {matches, note} with only ids that were in the list.
+// 4. returns {matches, strengthen, note} with only ids that were in the list.
+// With {mode: "develop"} it instead analyses one linked project idea against one call, using the
+// call's full text that the collector stores in texts/{callId}, and returns {fit, verdict, gaps, ...}.
 
-import { buildIdeaPrompt, cleanMatches, DEFAULT_PROFILE, IDEA_LIMITS } from "../../web/idea-prompt.js";
+import { buildDevelopPrompt, buildIdeaPrompt, cleanDevelop, cleanMatches, DEFAULT_PROFILE, DEVELOP_LIMITS, IDEA_LIMITS } from "../../web/idea-prompt.js";
 
 export default {
   async fetch(request, env) {
@@ -50,12 +52,6 @@ export default {
     // 3) input
     let body;
     try { body = await request.json(); } catch { return reply({ error: "Request body is not JSON." }, 400); }
-    const idea = String(body.idea || "").trim().slice(0, IDEA_LIMITS.idea);
-    const ideaName = String(body.ideaName || "").trim().slice(0, IDEA_LIMITS.name);
-    const lines = (Array.isArray(body.lines) ? body.lines : []).slice(0, IDEA_LIMITS.lines).map((l) => String(l).slice(0, IDEA_LIMITS.line));
-    if (idea.length < 15) return reply({ error: "Describe the idea in at least a sentence." }, 400);
-    if (!lines.length) return reply({ error: "No calls to compare against." }, 400);
-    const knownIds = new Set(lines.map((l) => l.split(" | ")[0]));
 
     let org = "";
     try {
@@ -63,28 +59,60 @@ export default {
       if (pr.ok) org = (await pr.json()).fields?.organisation?.stringValue || "";
     } catch { /* fall back below */ }
     org = org || env.ORG_PROFILE || DEFAULT_PROFILE.organisation;
+    const today = new Date().toISOString().slice(0, 10);
 
-    const prompt = buildIdeaPrompt({ idea, ideaName, lines, org, today: new Date().toISOString().slice(0, 10) });
-    const ar = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: { "x-api-key": env.ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json" },
-      // Matching an idea to calls benefits from some thinking; thinking tokens count toward max_tokens.
-      body: JSON.stringify({ model: env.MODEL || "claude-haiku-5-5", max_tokens: 8000, output_config: { effort: "medium" }, messages: [{ role: "user", content: prompt }] }),
-    });
-    if (!ar.ok) {
-      const detail = await ar.text();
-      console.log("Claude API error", ar.status, detail.slice(0, 500));
-      return reply({ error: ar.status === 429 ? "Claude is busy right now. Try again in a minute." : "Claude could not answer. Try again." }, 502);
+    if (body.mode === "develop") {
+      const ideaName = String(body.ideaName || "").trim().slice(0, IDEA_LIMITS.name);
+      const idea = String(body.idea || "").trim().slice(0, IDEA_LIMITS.idea);
+      const call = String(body.call || "").slice(0, 1500);
+      const callId = String(body.callId || "");
+      if (!ideaName || !call || !callId) return reply({ error: "Link the call to a project idea first." }, 400);
+      let callText = "";
+      try {
+        const tr = await fetch(`${docs}/texts/${encodeURIComponent(callId.replace(/\//g, "\u2215"))}`, { headers: { Authorization: `Bearer ${token}` } });
+        if (tr.ok) callText = (await tr.json()).fields?.text?.stringValue || "";
+      } catch { /* summary only */ }
+      const prompt = buildDevelopPrompt({ org, ideaName, idea, call, callText: callText.slice(0, DEVELOP_LIMITS.text), today });
+      const res = await askClaude(env, prompt, 6000);
+      if (res.error) return reply({ error: res.error }, 502);
+      console.log("develop", email, callId, res.usage?.input_tokens, "in", res.usage?.output_tokens, "out");
+      return reply({ ...cleanDevelop(res.json), hadCallText: !!callText, usage: res.usage });
     }
-    const data = await ar.json();
-    const text = (data.content || []).filter((b) => b.type === "text").map((b) => b.text).join("");
-    let parsed = {};
-    try { parsed = JSON.parse(text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1)); } catch { /* handled below */ }
-    const out = cleanMatches(parsed, knownIds);
-    console.log("idea search", email, lines.length, "calls", data.usage?.input_tokens, "in", data.usage?.output_tokens, "out");
-    return reply({ ...out, usage: data.usage || null });
+
+    const idea = String(body.idea || "").trim().slice(0, IDEA_LIMITS.idea);
+    const ideaName = String(body.ideaName || "").trim().slice(0, IDEA_LIMITS.name);
+    const lines = (Array.isArray(body.lines) ? body.lines : []).slice(0, IDEA_LIMITS.lines).map((l) => String(l).slice(0, IDEA_LIMITS.line));
+    if (idea.length < 15) return reply({ error: "Describe the idea in at least a sentence." }, 400);
+    if (!lines.length) return reply({ error: "No calls to compare against." }, 400);
+    const knownIds = new Set(lines.map((l) => l.split(" | ")[0]));
+
+    const prompt = buildIdeaPrompt({ idea, ideaName, lines, org, today });
+    const res = await askClaude(env, prompt, 8000);
+    if (res.error) return reply({ error: res.error }, 502);
+    const out = cleanMatches(res.json, knownIds);
+    console.log("idea search", email, lines.length, "calls", res.usage?.input_tokens, "in", res.usage?.output_tokens, "out");
+    return reply({ ...out, usage: res.usage });
   },
 };
+
+/** Asks Claude and parses the JSON object in its answer. Thinking tokens count toward max_tokens. */
+async function askClaude(env, prompt, maxTokens) {
+  const ar = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: { "x-api-key": env.ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+    body: JSON.stringify({ model: env.MODEL || "claude-haiku-5-5", max_tokens: maxTokens, output_config: { effort: "medium" }, messages: [{ role: "user", content: prompt }] }),
+  });
+  if (!ar.ok) {
+    const detail = await ar.text();
+    console.log("Claude API error", ar.status, detail.slice(0, 500));
+    return { error: ar.status === 429 ? "Claude is busy right now. Try again in a minute." : "Claude could not answer. Try again." };
+  }
+  const data = await ar.json();
+  const text = (data.content || []).filter((b) => b.type === "text").map((b) => b.text).join("");
+  let json = {};
+  try { json = JSON.parse(text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1)); } catch { /* empty result */ }
+  return { json, usage: data.usage || null };
+}
 
 function emailFromToken(token) {
   try {

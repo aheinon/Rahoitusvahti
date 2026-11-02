@@ -7,6 +7,9 @@ Data model:
 - meta/collector  {lastRun, counts, errors, ai}
 - ratings/{callId}__{email}  {callId, email, v: 1 | 0 | -1, reason, at}
     Team members' "is this relevant?" answers. The collector shows recent ones to Claude as examples.
+- texts/{callId}  {text, updatedAt}
+    The full text of each call (as read from the funder's page), for Claude's analysis of a linked
+    project idea. Written only when the text changes. ('/' in ids is stored as '∕'.)
 - settings/profile  {organisation, keywords: [{word, weight}], negative: [{word, weight}], updatedAt, updatedBy}
     The relevance profile, edited by admins in the app. Seeded from config.yaml on the first run.
 Team annotations (favourites, tags, comments, partners) live in their own collections,
@@ -53,6 +56,23 @@ class Store:
             return None
         snap = self.db.collection("settings").document("profile").get()
         return snap.to_dict() if snap.exists else None
+
+    def save_texts(self, texts: dict[str, str]) -> None:
+        if not texts:
+            return
+        now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        if self.dry:
+            path = self.dry.rsplit(".", 1)[0] + ".texts.json"
+            old = json.load(open(path, encoding="utf-8")) if os.path.exists(path) else {}
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump({**old, **texts}, f, ensure_ascii=False, indent=1)
+            return
+        items = list(texts.items())
+        for i in range(0, len(items), 400):           # a batch takes at most 500 writes
+            batch = self.db.batch()
+            for cid, text in items[i:i + 400]:
+                batch.set(self.db.collection("texts").document(cid.replace("/", "∕")), {"text": text[:20000], "updatedAt": now})
+            batch.commit()
 
     def load_feedback(self) -> dict:
         """The team's relevance ratings (ratings/{callId}__{email}) and pipeline stages (notes/{callId})."""

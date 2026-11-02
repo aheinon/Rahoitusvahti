@@ -89,7 +89,7 @@ def parse_results(results: list, programmes: dict, exclude: set) -> list[Call]:
         seen.add(ident)
         typ = _first(m, "type")
         title = clean_text(_first(m, "title") or r.get("summary", ""), 400)
-        desc = clean_text(_first(m, "descriptionByte") or _first(m, "description"), 4000)
+        desc = clean_text(_first(m, "descriptionByte") or _first(m, "description"), 12000)
         url = _first(m, "url") or r.get("url", "")
         if url.endswith(".json"):  # old topics point to JSON data
             url = "https://ec.europa.eu/info/funding-tenders/opportunities/portal/screen/opportunities/topic-details/" + ident

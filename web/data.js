@@ -1,6 +1,6 @@
 // Data layer: the same interface for Firebase mode and demo mode.
 // Team annotations are kept apart from the collector's data (index/*).
-import { buildIdeaPrompt, cleanMatches, DEFAULT_PROFILE } from "./idea-prompt.js";
+import { buildDevelopPrompt, buildIdeaPrompt, cleanDevelop, cleanMatches, DEFAULT_PROFILE } from "./idea-prompt.js";
 
 const FB = "https://www.gstatic.com/firebasejs/10.12.2/";
 
@@ -150,21 +150,20 @@ export async function createFirebaseStore(config) {
       await F.setDoc(F.doc(db, "settings", "profile"), { ...p, updatedBy: store.user.name || store.user.email, updatedAt: F.serverTimestamp() });
     },
 
-    // ---- idea search (Cloudflare Worker holds the Claude API key) ----
-    ideaSearchAvailable() { return !!window.RV_CONFIG?.ideaSearchUrl; },
-    async suggestCalls({ idea, ideaName, lines, signal }) {
-      const url = window.RV_CONFIG?.ideaSearchUrl;
-      if (!url) throw { code: "not_configured" };
-      const token = await auth.currentUser.getIdToken();
-      let res;
-      try {
-        res = await fetch(url, { method: "POST", signal, headers: { "content-type": "application/json", Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ idea, ideaName, lines }) });
-      } catch (e) { throw { code: e.name === "AbortError" ? "cancelled" : "network", message: e.message }; }
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) throw { code: res.status === 429 ? "rate_limited" : "server", message: body.error || `HTTP ${res.status}` };
-      return body;
+    // ---- shared project idea descriptions: ideas/{name in lower case} ----
+    watchIdeas(cb) {
+      return F.onSnapshot(F.collection(db, "ideas"), (snap) => {
+        const out = {}; snap.forEach((d) => { const x = d.data(); out[x.name] = x; }); cb(out);
+      });
     },
+    async saveIdea(name, description) {
+      await F.setDoc(F.doc(db, "ideas", encodeId(name.toLowerCase())), { name, description, updatedBy: store.user.email, updatedAt: F.serverTimestamp() }, { merge: true });
+    },
+
+    // ---- idea search and idea analysis (Cloudflare Worker holds the Claude API key) ----
+    ideaSearchAvailable() { return !!window.RV_CONFIG?.ideaSearchUrl; },
+    async suggestCalls({ idea, ideaName, lines, signal }) { return callWorker({ idea, ideaName, lines }, signal); },
+    async developIdea({ callId, ideaName, idea, call, signal }) { return callWorker({ mode: "develop", callId, ideaName, idea, call }, signal); },
 
     // ---- users ----
     watchAllow(cb) {
@@ -175,6 +174,19 @@ export async function createFirebaseStore(config) {
     async saveAllow(email, data) { await F.setDoc(F.doc(db, "allowlist", email.toLowerCase()), data, { merge: true }); },
     async deleteAllow(email) { await F.deleteDoc(F.doc(db, "allowlist", email)); },
   };
+  async function callWorker(payload, signal) {
+    const url = window.RV_CONFIG?.ideaSearchUrl;
+    if (!url) throw { code: "not_configured" };
+    const token = await auth.currentUser.getIdToken();
+    let res;
+    try {
+      res = await fetch(url, { method: "POST", signal, headers: { "content-type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(payload) });
+    } catch (e) { throw { code: e.name === "AbortError" ? "cancelled" : "network", message: e.message }; }
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw { code: res.status === 429 ? "rate_limited" : "server", message: body.error || `HTTP ${res.status}` };
+    return body;
+  }
   return store;
 }
 
@@ -215,6 +227,10 @@ export async function createDemoStore() {
     ],
     me: { favorites: ["eu:HORIZON-CL5-2027-02-D3-15", "aka:2027-akatemiahankkeet-kaikki-tutkimusalat", "eu:HORIZON-MISS-2027-04-CIT-01"] },
     manual: [],
+    ideas: {
+      "PV-Factory pilot line": { name: "PV-Factory pilot line", description: "A pilot line at Turku UAS for testing new PV module production steps with Finnish SMEs, with students doing the test runs and quality measurements." },
+      "Housing company PV + storage": { name: "Housing company PV + storage", description: "A pilot where a housing company shares rooftop PV and a battery between apartments, with vocational students doing the installation and monitoring." },
+    },
     ratings: {
       "eu:HORIZON-CL5-2027-02-D3-15": [{ email: "matti.meikalainen@turkuamk.fi", name: "Matti Meikäläinen", v: 1, reason: "Core PV topic", at: new Date(now - 2 * 864e5).toISOString() }],
       "eu:HORIZON-CL5-2027-05-D2-08": [{ email: "maija.meikalainen@turkuamk.fi", name: "Maija Meikäläinen", v: 1, reason: "", at: new Date(now - 2 * 864e5).toISOString() }],
@@ -228,7 +244,8 @@ export async function createDemoStore() {
   try { st = JSON.parse(localStorage.getItem(KEY)) || seed; } catch { st = seed; }
   st.profile ||= structuredClone(seed.profile);
   st.ratings ||= structuredClone(seed.ratings);
-  const listeners = { ratings: new Set(), notes: new Set(), partners: new Set(), allow: new Set(), comments: new Map(), profile: new Set() };
+  st.ideas ||= structuredClone(seed.ideas);
+  const listeners = { ideas: new Set(), ratings: new Set(), notes: new Set(), partners: new Set(), allow: new Set(), comments: new Map(), profile: new Set() };
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(st)); } catch { /* storage is optional */ } };
   const emit = (k) => {
     save();
@@ -265,6 +282,23 @@ export async function createDemoStore() {
       emit("notes"); listeners.comments.get(id)?.();
     },
     watchRatings(cb) { return watch(listeners.ratings, cb, st.ratings); },
+    watchIdeas(cb) { return watch(listeners.ideas, cb, st.ideas); },
+    async saveIdea(name, description) {
+      st.ideas[name] = { name, description, updatedBy: store.user.email };
+      save(); listeners.ideas.forEach((cb) => cb(structuredClone(st.ideas)));
+    },
+    // Analysis of a linked idea for one call: Claude through the artifact viewer when available.
+    async developIdea({ callId, ideaName, idea, call, callText, signal }) {
+      const sample = window.claude?.use ? await window.claude.use("sample").catch(() => null) : null;
+      if (!sample) throw { code: "not_available", message: "Claude's analysis needs the live service (or the demo opened in Claude)." };
+      const prompt = buildDevelopPrompt({ org: st.profile?.organisation || DEFAULT_PROFILE.organisation, ideaName, idea, call, callText, today: new Date().toISOString().slice(0, 10) });
+      try {
+        return { ...cleanDevelop(await sample.json(prompt, { signal, modelTier: "default" })), hadCallText: false };
+      } catch (e) {
+        if (e?.name === "AbortError" || e?.code === "aborted") throw { code: "cancelled" };
+        throw { code: e?.code || "server", message: e?.message || "Claude could not answer." };
+      }
+    },
     async saveRating(callId, v, reason = "") {
       const list = (st.ratings[callId] || []).filter((r) => r.email !== store.user.email);
       if (v !== null) list.push({ email: store.user.email, name: store.user.name, v, reason, at: new Date().toISOString() });

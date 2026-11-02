@@ -98,7 +98,7 @@ const safeUrl = (u) => (/^https?:\/\//i.test(String(u || "").trim()) ? String(u)
 const S = {
   store: null,
   calls: [], byId: new Map(), meta: {},
-  notes: {}, ratings: {}, partners: [], allow: [], me: { favorites: [] }, profile: undefined, profileDraft: null,
+  notes: {}, ratings: {}, ideaDocs: {}, develop: {}, partners: [], allow: [], me: { favorites: [] }, profile: undefined, profileDraft: null,
   view: LS.get("rv-view", "list"),
   filters: migrateFilters(Object.assign({}, DEFAULT_FILTERS, LS.get("rv-filters", {}))),
   sort: LS.get("rv-sort", "deadline"),
@@ -106,7 +106,7 @@ const S = {
   showSummaries: LS.get("rv-summaries", false),
   openId: null,
   unsubComments: null,
-  idea: { text: LS.get("rv-idea-text", ""), name: LS.get("rv-idea-name", ""), status: "idle", matches: [], note: "", offline: false, error: "", ctl: null, open: LS.get("rv-idea-open", true) },
+  idea: { text: LS.get("rv-idea-text", ""), name: LS.get("rv-idea-name", ""), status: "idle", matches: [], strengthen: [], note: "", offline: false, error: "", ctl: null, open: LS.get("rv-idea-open", true) },
 };
 const fav = (id) => S.me.favorites?.includes(id);
 const noteOf = (id) => S.notes[id] || {};
@@ -159,6 +159,7 @@ async function loadAll() {
   S.store.watchNotes((n) => { S.notes = n; refresh(); });
   S.store.watchPartners((p) => { S.partners = p; refresh(); });
   S.store.watchRatings((r) => { S.ratings = r || {}; refresh(); });
+  S.store.watchIdeas((d) => { S.ideaDocs = d || {}; if (S.openId) renderDrawerBody(); });
   S.store.watchAllow((a) => { S.allow = a; refresh(); });
   S.store.watchProfile((p) => { S.profile = p; if (S.view === "profile" && !S.profileDraft) refresh(); });
   renderShell();
@@ -564,6 +565,7 @@ function ideaPanelHtml() {
     results = `<div class="idea-results">
       <div class="idea-head"><b>${items.length ? `${items.length} suggested ${items.length === 1 ? "call" : "calls"}` : "No good matches"}</b>${I.offline ? `<span class="tag">keyword match</span>` : ""}<span class="spacer"></span><button class="linkbtn" id="idea-clear">Clear results</button></div>
       ${I.note ? `<p class="idea-note">${esc(I.note)}</p>` : ""}
+      ${I.strengthen?.length ? `<div class="strengthen"><h3>How to strengthen the idea for these calls</h3><ul>${I.strengthen.map((x) => `<li>${esc(x)}</li>`).join("")}</ul></div>` : ""}
       ${items.map(({ m, c }) => {
         const dl = nextDeadline(c);
         const linked = noteOf(c.id).idea === I.name.trim();
@@ -608,12 +610,15 @@ function bindIdeaPanel() {
   $("#idea-name").onchange = () => { if (I.status === "done") refresh(); };
   $("#idea-form").onsubmit = (e) => { e.preventDefault(); runIdeaSearch(); };
   $("#idea-stop") && ($("#idea-stop").onclick = () => I.ctl?.abort());
-  $("#idea-clear") && ($("#idea-clear").onclick = () => { I.status = "idle"; I.matches = []; I.note = ""; refresh(); });
+  $("#idea-clear") && ($("#idea-clear").onclick = () => { I.status = "idle"; I.matches = []; I.strengthen = []; I.note = ""; refresh(); });
   $$(".idea [data-open]").forEach((b) => (b.onclick = () => openDrawer(b.dataset.open)));
   $$(".idea [data-fav]").forEach((b) => (b.onclick = () => toggleFav(b.dataset.fav)));
   $$(".idea [data-link]").forEach((b) => (b.onclick = async () => {
-    await S.store.saveNote(b.dataset.link, { idea: I.name.trim() });
-    toast(`Linked to “${I.name.trim()}”`);
+    const name = I.name.trim();
+    await S.store.saveNote(b.dataset.link, { idea: name });
+    // keep the idea's description with it, so Claude can analyse it for each linked call
+    if (I.text.trim() && (S.ideaDocs[name]?.description || "") !== I.text.trim()) await S.store.saveIdea(name, I.text.trim());
+    toast(`Linked to “${name}”`);
   }));
 }
 
@@ -636,7 +641,7 @@ async function runIdeaSearch() {
   I.status = "loading"; I.error = ""; refresh();
   try {
     const res = await S.store.suggestCalls({ idea, ideaName: I.name.trim(), lines: calls.map(callLine), signal: I.ctl.signal });
-    I.matches = res.matches || []; I.note = res.note || ""; I.offline = !!res.offline; I.status = "done";
+    I.matches = res.matches || []; I.strengthen = res.strengthen || []; I.note = res.note || ""; I.offline = !!res.offline; I.status = "done";
   } catch (e) {
     if (e?.code === "cancelled") { I.status = "idle"; }
     else { I.status = "error"; I.error = IDEA_ERRORS[e?.code] || e?.message || "The idea search failed. Try again."; }
@@ -723,6 +728,7 @@ function renderDrawerBody() {
     <div class="field"><span class="lbl">Potential partners</span>${chipEditor("partners", (n.partners || []).map((p) => [p, S.partners.find((x) => x.id === p)?.name || "(deleted)"]), editable, "Add a partner…")}</div>
     <div class="field"><span class="lbl">Tags</span>${chipEditor("tags", (n.tags || []).map((t) => [t, t]), editable, "Add a tag and press Enter")}</div>
   </section>
+  ${developHtml(c, n)}
   <section>
     <h3>Comments</h3>
     <div class="comments" id="comments"></div>
@@ -736,6 +742,64 @@ function renderDrawerBody() {
   dr.scrollTop = scroll;
   bindDrawer(c, editable);
   renderComments();
+}
+
+/* ---- Claude's analysis of a linked project idea for this call ---- */
+
+function developHtml(c, n) {
+  if (!S.store.ideaSearchAvailable() && S.store.mode !== "demo") return "";
+  if (!n.idea) {
+    return `<section class="develop"><h3>Develop an idea for this call</h3>
+      <p class="hint">Link this call to a project idea in the team notes${isMember() ? " below" : ""}, and Claude can assess how the idea fits the call: gaps, partners needed, risks and next steps.</p></section>`;
+  }
+  const D = S.develop[c.id] || {};
+  const desc = D.draft ?? S.ideaDocs[n.idea]?.description ?? "";
+  const r = D.result;
+  const block = (title, items, ordered) => items?.length ? `<h4>${title}</h4><${ordered ? "ol" : "ul"}>${items.map((x) => `<li>${esc(x)}</li>`).join("")}</${ordered ? "ol" : "ul"}>` : "";
+  return `<section class="develop" aria-labelledby="dev-h">
+    <h3 id="dev-h">Develop “${esc(n.idea)}” for this call</h3>
+    ${isMember() ? `<div class="field"><label for="dev-desc">The idea in a few sentences</label>
+      <textarea id="dev-desc" rows="3" maxlength="2000" placeholder="What would the project do, with whom, and what would it produce? Shared with the team as the description of this idea.">${esc(desc)}</textarea></div>
+      <div class="dev-row"><button class="btn" id="dev-run" ${D.status === "loading" ? "disabled" : ""}>${r ? "Analyse again" : "Analyse with Claude"}</button>
+      <span class="hint">Claude reads the call text and the team profile. About 1–2 cents per analysis.</span></div>`
+      : `<p class="hint">${esc(desc || "No description yet.")}</p>`}
+    ${D.status === "loading" ? `<div class="idea-status" role="status"><span class="pulse" aria-hidden="true"></span>Claude is reading the call and assessing the idea. This takes up to a minute.</div>` : ""}
+    ${D.status === "error" ? `<div class="idea-status err" role="alert">${esc(D.error)}</div>` : ""}
+    ${r ? `<div class="dev-result">
+      <div class="dev-head"><div class="fit"><b>${r.fit}</b><span>fit</span></div><p>${esc(r.verdict)}</p></div>
+      ${block("What already fits", r.matches)}${block("Gaps to close", r.gaps)}${block("Partners and roles needed", r.consortium)}${block("Risks", r.risks)}${block("Next steps", r.next_steps, true)}
+      ${r.hadCallText === false ? `<p class="hint">Based on the call summary only; the full call text is saved on the next nightly run.</p>` : ""}
+      <button class="btn ghost small" id="dev-post">Post to comments</button>
+    </div>` : ""}
+  </section>`;
+}
+
+function developText(name, r) {
+  const list = (t, xs, ordered) => (xs?.length ? `\n\n${t}:\n${xs.map((x, i) => `${ordered ? i + 1 + "." : "•"} ${x}`).join("\n")}` : "");
+  return `Claude's analysis of “${name}” for this call (fit ${r.fit}/100)\n\n${r.verdict}`
+    + list("What already fits", r.matches) + list("Gaps to close", r.gaps) + list("Partners and roles needed", r.consortium)
+    + list("Risks", r.risks) + list("Next steps", r.next_steps, true);
+}
+
+async function runDevelop(c) {
+  const n = noteOf(c.id);
+  const D = (S.develop[c.id] ||= {});
+  const desc = ($("#dev-desc")?.value ?? D.draft ?? S.ideaDocs[n.idea]?.description ?? "").trim();
+  D.draft = desc;
+  if (desc && desc !== (S.ideaDocs[n.idea]?.description || "")) S.store.saveIdea(n.idea, desc);
+  D.status = "loading"; D.error = ""; renderDrawerBody();
+  try {
+    const dl = (c.deadlines || []).join(", ") || (c.continuous ? "rolling" : c.deadline_text || "-");
+    const call = [`${c.title}`, `Funder: ${c.funder}${c.programme && c.programme !== c.funder ? " / " + c.programme : ""}`, c.call_id && `Identifier: ${c.call_id}`,
+      c.action_type && `Type of action: ${c.action_type}`, `Opens: ${c.opens || "-"}; deadline(s): ${dl}${c.deadline_time ? " " + c.deadline_time : ""}`,
+      c.region && `Region / countries: ${c.region}`, `Summary: ${c.aiSummary || c.summary || "-"}`].filter(Boolean).join("\n");
+    D.result = await S.store.developIdea({ callId: c.id, ideaName: n.idea, idea: desc, call, callText: c.summary || "" });
+    D.status = "done";
+  } catch (e) {
+    D.status = "error";
+    D.error = IDEA_ERRORS[e?.code] || e?.message || "The analysis failed. Try again.";
+  }
+  if (S.openId === c.id) renderDrawerBody();
 }
 
 const VOTES = [[1, "👍", "Relevant"], [0, "🤷", "Maybe"], [-1, "👎", "Not relevant"]];
@@ -762,6 +826,12 @@ function bindDrawer(c, editable) {
   const dr = $("#drawer");
   $(".close", dr).onclick = closeDrawer;
   $("#dr-fav").onclick = () => toggleFav(c.id);
+  $("#dev-desc") && ($("#dev-desc").oninput = (e) => { (S.develop[c.id] ||= {}).draft = e.target.value; });
+  $("#dev-run") && ($("#dev-run").onclick = () => runDevelop(c));
+  $("#dev-post") && ($("#dev-post").onclick = async () => {
+    await S.store.addComment(c.id, developText(noteOf(c.id).idea, S.develop[c.id].result), []);
+    toast("Analysis posted to the comments");
+  });
   $$("[data-vote]", dr).forEach((b) => (b.onclick = async () => {
     const v = Number(b.dataset.vote);
     const mine = ratingOf(c.id).mine;

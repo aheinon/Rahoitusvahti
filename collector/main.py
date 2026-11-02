@@ -17,7 +17,7 @@ import yaml
 
 sys.path.insert(0, os.path.dirname(__file__))
 
-from common import TODAY, log  # noqa: E402
+from common import TODAY, log, short_hash  # noqa: E402
 import relevance_profile as prof  # noqa: E402
 from scoring import AiScorer, keyword_score  # noqa: E402
 from sources import akatemia, business_finland, cetp, eu_ft, eura, interreg, maaseutu, oph, saatiot, valtionavustukset  # noqa: E402
@@ -60,6 +60,8 @@ def merge(fresh: list, prev: dict, ok_sources: set, scorer: AiScorer, profile: d
         rec["firstSeen"] = old.get("firstSeen", today)
         rec["lastSeen"] = today
         rec["kwScore"] = kw
+        if call.detail_text:
+            rec["textHash"] = short_hash(call.detail_text)
         ai = results.get(call.id) or {}
         if not ai and "aiScore" in old:
             # keep the previous assessment (unchanged call, AI off, or this run's budget used up)
@@ -192,6 +194,11 @@ def main() -> int:
     meta = {"counts": counts, "errors": errors, "total": len(items),
             "ai": {"scored": scorer.used, "inputTokens": scorer.tokens_in, "outputTokens": scorer.tokens_out}}
     store.save(items, meta)
+    # Full call texts for "Develop the idea for this call" (written only when they changed)
+    texts = {c.id: c.detail_text for c in fresh
+             if c.detail_text and prev.get(c.id, {}).get("textHash") != short_hash(c.detail_text)}
+    store.save_texts(texts)
+    log(f"Call texts: {len(texts)} new or changed saved")
     log(f"Done: {len(items)} calls saved. Sources: {counts}. Errors: {errors or 'none'}. "
         f"AI: {scorer.used} scored, {scorer.tokens_in} input / {scorer.tokens_out} output tokens")
     return 1 if errors and not ok else 0
