@@ -39,9 +39,11 @@ GitHub Actions (nightly)                 GitHub Pages (web/)
   them in the portal as *forthcoming*, so calls closing over a year from now are included.
 - **Summaries**: Claude writes a 2-3 sentence English summary of each call (what it funds, who can take
   part, size of funding) from the call text. Shown in the call details and, with *Show summaries*, in the list.
-- **Find calls for an idea**: describe a topic or project idea in a few sentences; Claude compares it
-  with every open and upcoming call and suggests up to 8, each with a fit score, why it fits and how
-  to frame the idea for that call. Suggested calls can be linked to the idea with one click.
+- **Find calls for an idea** (Ideas page): a *quick idea search* for trying a thought without creating an
+  idea, and *Find calls* on each idea card. Claude compares the idea with every open and upcoming call
+  and suggests up to 8, each with a fit score, why it fits and how to frame the idea for that call.
+  On an idea card the results are saved with the date, so the whole team sees them; a quick search
+  can be saved as a new idea. Suggested calls can be linked to the idea with one click.
 - **Idea search also suggests how to strengthen the idea**: 3-5 concrete points based on what the
   matched calls expect.
 - **Develop an idea for a call**: when a call is linked to a project idea, Claude reads the call's full
@@ -58,7 +60,8 @@ GitHub Actions (nightly)                 GitHub Pages (web/)
   project highlights its consortium. An organisation's card shows the projects together, the calls it
   is linked to and the team's notes (contact, expertise). On the *Projects* tab the team ticks NERC's
   EU projects and adds other projects (Erasmus+, Interreg, ERDF, Business Finland ...) with partners.
-  In a call's details, *Potential partners* can be picked from all of these.
+  In a call's details, *Potential partners* can be picked from all of these. *Close partners* (★) are
+  ticked per project on the Projects tab or with *Add to close partners* on an organisation's card.
 - **Who won similar calls**: for every Horizon Europe call, the funded projects closest to it (same topic
   in earlier rounds, or most similar by text) with their consortia. Organisations you have worked with or
   have on the partner list are highlighted.

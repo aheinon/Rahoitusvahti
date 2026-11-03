@@ -559,3 +559,22 @@ tr.click:hover { background: var(--hover); }
 .close-list .check { display: flex; align-items: flex-start; gap: 8px; font-size: 14px; margin: 0; }
 .close-list input { width: auto; margin-top: 3px; flex: none; }
 .close-list small { color: var(--ink-3); display: block; }
+.idea-intro { margin: 4px 16px 0; font-size: 14px; color: var(--ink-2); }
+.ib-calls .lbl { font-size: 12px; font-weight: 650; text-transform: uppercase; letter-spacing: .03em; color: var(--ink-3); }
+.ib-sugg { border-top: 1px solid var(--line-2); padding-top: 6px; font-size: 14px; }
+.ib-sugg summary { cursor: pointer; font-weight: 600; }
+.sugg { display: grid; grid-template-columns: 30px 1fr auto; gap: 8px; align-items: start; padding: 6px 0; }
+.sugg .linkbtn { text-align: left; }
+.sfit { font-variant-numeric: tabular-nums; text-align: center; border: 1.5px solid var(--sun); border-radius: 6px; font-size: 13px; line-height: 22px; }
+.ib-sugg .strengthen { margin-top: 8px; }
+.org-close { margin: -4px 0 12px; }
+.idea-intro { margin: 4px 16px 0; font-size: 14px; color: var(--ink-2); }
+.ib-calls .lbl { font-size: 12px; font-weight: 650; text-transform: uppercase; letter-spacing: .03em; color: var(--ink-3); }
+.ib-sugg { border-top: 1px solid var(--line-2); padding-top: 6px; font-size: 14px; }
+.ib-sugg summary { cursor: pointer; font-weight: 600; }
+.sugg { display: grid; grid-template-columns: 30px 1fr auto; gap: 8px; align-items: start; padding: 6px 0; }
+.sugg .linkbtn { text-align: left; }
+.sfit { font-variant-numeric: tabular-nums; text-align: center; border: 1.5px solid var(--sun); border-radius: 6px; font-size: 13px; line-height: 22px; }
+.ib-sugg .strengthen { margin-top: 8px; }
+.org-close { margin: -4px 0 12px; }
+.ib-sugg .strengthen h3, .idea-card .strengthen h3 { font-size: 13px; margin: 0 0 4px; }
