@@ -220,7 +220,7 @@ function renderShell() {
   const tabs = [["list", "Calls"]].concat(isMember() ? [["ideas", "Ideas"], ["partners", "Partners"]] : []).concat([["board", "Pipeline"]]).concat([ ["profile", "Profile"]]).concat(isAdmin() ? [["users", "Users"]] : []);
   if ((S.view === "users" && !isAdmin()) || (["ideas", "network", "partners"].includes(S.view) && !isMember())) S.view = "list";
   $("#app").innerHTML = `
-  ${S.store.mode === "demo" ? `<div class="demo-band"><span>Demo: a sample of ${S.calls.length} real calls collected on 29 Oct and 2 Nov 2026 (the full service tracks several hundred). Your changes are saved in this browser only. AI summaries and reasons on the calls are examples.</span><button id="demo-reset">Reset demo</button></div>` : ""}
+  ${S.store.mode === "demo" ? `<div class="demo-band"><span>Demo with ${S.calls.length} real calls (29 Oct and 2 Nov 2026) and a sample of real CORDIS partner data. Ideas, notes, comments and Claude's results are examples. Changes stay in this browser only; live Claude searches need the real service.</span><button id="demo-reset">Reset demo</button></div>` : ""}
   <header class="top">
     <div class="brand"><b>${esc(window.RV_CONFIG?.appName || "Rahoitusvahti")}</b><span>${esc(window.RV_CONFIG?.orgName || "")}</span></div>
     <nav class="tabs" aria-label="Views">${tabs.map(([k, l]) => `<button data-view="${k}" ${S.view === k ? 'aria-current="page"' : ""}>${l}</button>`).join("")}</nav>

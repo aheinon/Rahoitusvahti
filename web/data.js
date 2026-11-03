@@ -236,12 +236,12 @@ const decodeId = (id) => id.replace(/∕/g, "/");
 /* ---------------- Demo (browser storage) ---------------- */
 
 export async function createDemoStore() {
-  const KEY = "rv-demo-en-v5";
+  const KEY = "rv-demo-en-v6";
   const base = window.RV_DEMO_DATA || (await (await fetch("demo-data.json")).json());
   const now = Date.now();
   const seed = {
     notes: {
-      "eu:HORIZON-CL5-2027-02-D3-15": { stage: "preparing", idea: "PV-Factory pilot line", tags: ["solar PV", "consortium needed"], people: ["demo@turkuamk.fi", "matti.meikalainen@turkuamk.fi"], partners: ["p1"], commentCount: 2 },
+      "eu:HORIZON-CL5-2027-02-D3-15": { stage: "preparing", idea: "PV-Factory pilot line", tags: ["solar PV", "consortium needed"], people: ["demo@turkuamk.fi", "matti.meikalainen@turkuamk.fi"], partners: ["p1", "p3"], commentCount: 3 },
       "eu:HORIZON-CL5-2027-05-D2-08": { stage: "watching", idea: "Housing company PV + storage", tags: ["batteries"], people: ["maija.meikalainen@turkuamk.fi"], partners: [], commentCount: 0 },
       "bf:haku-tutkimusorganisaatio-pk-yritys": { stage: "watching", idea: "Housing company PV + storage", tags: ["SME collaboration"], people: [], partners: ["p2"], commentCount: 1 },
     },
@@ -249,6 +249,8 @@ export async function createDemoStore() {
       "eu:HORIZON-CL5-2027-02-D3-15": [
         { id: "c1", author: "matti.meikalainen@turkuamk.fi", authorName: "Matti Meikäläinen", text: "The work programme says IA, TRL 6-7. Do we have a pilot site to offer?", mentions: [], createdAt: new Date(now - 3 * 864e5).toISOString() },
         { id: "c2", author: "demo@turkuamk.fi", authorName: "Demo User", text: "@Maija Meikäläinen could you ask the example university whether they would coordinate?", mentions: ["maija.meikalainen@turkuamk.fi"], createdAt: new Date(now - 864e5).toISOString() },
+        { id: "c4", author: "demo@turkuamk.fi", authorName: "Demo User", createdAt: new Date(now - 6 * 36e5).toISOString(), mentions: [],
+          text: "Claude's analysis of “PV-Factory pilot line” for this call (fit 71/100) [example]\n\nA reasonable fit as a partner: the call funds pilot lines for next-generation PV manufacturing, and the idea brings a test environment and SME links. As a coordinator it would be too heavy; the call expects industrial manufacturers to lead.\n\nWhat already fits:\n• Testing new module production steps with SMEs\n• Student involvement supports the skills and replication aspects\n\nGaps to close:\n• The call expects demonstration at manufacturing scale; join a consortium led by a PV manufacturer\n• Define measurable targets for module efficiency and cost\n\nPartners and roles needed:\n• A European PV equipment or module manufacturer as coordinator\n• A research institute with cell and module characterisation (e.g. CEA, Fraunhofer ISE)\n\nRisks:\n• Large consortia: the UAS role may be small unless the test environment is a work package of its own\n\nNext steps:\n1. Contact EUPI-PV partnership members about consortia forming\n2. Describe the pilot line's capabilities on one page" },
       ],
       "bf:haku-tutkimusorganisaatio-pk-yritys": [
         { id: "c3", author: "maija.meikalainen@turkuamk.fi", authorName: "Maija Meikäläinen", text: "Good route for regional energy SMEs. Let's map which SMEs are interested.", mentions: [], createdAt: new Date(now - 2 * 864e5).toISOString() },
@@ -257,6 +259,7 @@ export async function createDemoStore() {
     partners: [
       { id: "p1", name: "Example University", country: "DE", type: "University", contact: "Contact person (example)", email: "", notes: "Example row - edit or delete." },
       { id: "p2", name: "Solar Tech Ltd (example)", country: "FI", type: "Company", contact: "", email: "", notes: "" },
+      { id: "p3", name: "FUNDACION CIRCE CENTRO DE INVESTIGACION DE RECURSOS Y CONSUM", cordisId: "999516907", country: "ES", type: "Research institute", contact: "Contact person (example)", email: "", notes: "Coordinated SUNVIBE. Strong in grid integration and inverters; good coordinator candidate for PV calls. (example notes)", close: true },
     ],
     allow: [
       { email: "demo@turkuamk.fi", name: "Demo User", role: "admin", org: "Turku UAS" },
@@ -267,12 +270,22 @@ export async function createDemoStore() {
     me: { favorites: ["eu:HORIZON-CL5-2027-02-D3-15", "aka:2027-akatemiahankkeet-kaikki-tutkimusalat", "eu:HORIZON-MISS-2027-04-CIT-01"] },
     manual: [],
     ideas: {
-      "PV-Factory pilot line": { name: "PV-Factory pilot line", status: "developing", scope: "international", funders: ["horizon", "cetp"], pieces: ["pc2"], description: "A pilot line at Turku UAS for testing new PV module production steps with Finnish SMEs, with students doing the test runs and quality measurements." },
-      "Housing company PV + storage": { name: "Housing company PV + storage", status: "raw", scope: "national", funders: ["bf", "eura"], pieces: ["pc1"], description: "A pilot where a housing company shares rooftop PV and a battery between apartments, with vocational students doing the installation and monitoring." },
+      "PV-Factory pilot line": { name: "PV-Factory pilot line", status: "developing", scope: "international", funders: ["horizon", "cetp"],
+        search: { at: new Date(now - 864e5).toISOString(), note: "", matches: [
+          { id: "eu:HORIZON-CL5-2027-02-D3-15", fit: 78, why: "Pilot lines for next-generation PV manufacturing.", angle: "Offer the pilot line as a test bed in a manufacturer-led consortium." },
+          { id: "cetp:joint-call-2026", fit: 66, why: "Renewable power technologies module; Business Finland funds Finnish partners.", angle: "Smaller transnational project on module testing with SMEs." },
+          { id: "eu:HORIZON-CL5-2027-02-D3-07", fit: 41, why: "Solar technology, but thermal rather than PV.", angle: "Only if a CSP partner leads." }],
+          strengthen: ["Describe the pilot line's equipment and capacity in one paragraph; the Horizon call expects manufacturing-scale demonstration.", "Name one or two Finnish SMEs that would use the line, for the CETP national requirements."] }, pieces: ["pc2"], description: "A pilot line at Turku UAS for testing new PV module production steps with Finnish SMEs, with students doing the test runs and quality measurements." },
+      "Housing company PV + storage": { name: "Housing company PV + storage", status: "raw", scope: "national", funders: ["bf", "eura"],
+        search: { at: new Date(now - 2 * 864e5).toISOString(), note: "", matches: [
+          { id: "bf:haku-tutkimusorganisaatio-pk-yritys", fit: 74, why: "Research organisations with SMEs that are new to research collaboration.", angle: "Installers and battery integrators as the SME group." },
+          { id: "eu:HORIZON-CL5-2027-05-D2-08", fit: 58, why: "Battery storage demonstration, though aimed at long-duration grid storage.", angle: "Housing companies as a distributed storage use case." },
+          { id: "maaseutu:demo-varsinhyva", fit: 35, why: "Local development funding in Turku region, but rural areas only.", angle: "Only for a housing company in a rural Leader area." }],
+          strengthen: ["Name the pilot housing company and when its roof renovation is due.", "Decide whether the energy community angle (shared battery) or the skills angle (students) leads the application."] }, pieces: ["pc1"], description: "A pilot where a housing company shares rooftop PV and a battery between apartments, with vocational students doing the installation and monitoring." },
     },
     netProjects: [
-      { id: "cordis-101123238", kind: "cordis", pid: "101123238", nerc: true },
-      { id: "cordis-101269394", kind: "cordis", pid: "101269394", nerc: true },
+      { id: "cordis-101123238", kind: "cordis", pid: "101123238", nerc: true, close: ["998802502", "892171760", "999951467", "953024419"] },
+      { id: "cordis-101269394", kind: "cordis", pid: "101269394", nerc: true, close: ["881684411", "995129985"] },
       { id: "np1", kind: "manual", nerc: true, name: "Example Erasmus+ CoVE project (example)", programme: "Erasmus+", start: "2024", end: "2027",
         partners: [{ name: "Example VET college (example)", country: "NL", city: "Utrecht", type: "HES" }, { name: "FUNDACION CIRCE CENTRO DE INVESTIGACION DE RECURSOS Y CONSUM", country: "ES", city: "Zaragoza", type: "REC" }] },
     ],
