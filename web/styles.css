@@ -578,3 +578,4 @@ tr.click:hover { background: var(--hover); }
 .ib-sugg .strengthen { margin-top: 8px; }
 .org-close { margin: -4px 0 12px; }
 .ib-sugg .strengthen h3, .idea-card .strengthen h3 { font-size: 13px; margin: 0 0 4px; }
+.net-show button .n { opacity: .65; font-size: 12px; margin-left: 2px; }

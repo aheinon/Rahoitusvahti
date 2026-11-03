@@ -99,7 +99,7 @@ const S = {
   store: null,
   calls: [], byId: new Map(), meta: {},
   notes: {}, ratings: {}, ideaDocs: {}, cardSearch: {}, pieces: [], net: null, netProjects: [], radar: {},
-  netView: { tab: "orgs", mode: LS.get("rv-net-mode", "map"), q: "", type: "", sort: "projects", project: "", rels: null }, pieceKind: "", develop: {}, partners: [], allow: [], me: { favorites: [] }, profile: undefined, profileDraft: null,
+  netView: { tab: "orgs", mode: LS.get("rv-net-mode", "map"), q: "", type: "", sort: "projects", project: "", show: null }, pieceKind: "", develop: {}, partners: [], allow: [], me: { favorites: [] }, profile: undefined, profileDraft: null,
   view: LS.get("rv-view", "list"),
   filters: migrateFilters(Object.assign({}, DEFAULT_FILTERS, LS.get("rv-filters", {}))),
   sort: LS.get("rv-sort", "deadline"),
@@ -1083,18 +1083,20 @@ const callsOfPartner = (docId) => Object.entries(S.notes).filter(([, n]) => (n.p
 function renderPartnersPage(v) {
   ensureNetwork();
   const NV = S.netView;
-  NV.rels ||= ["nerc", "potential"];
+  NV.show ||= LS.get("rv-net-show", "close");
   const tabsHtml = `<div class="seg" role="tablist" aria-label="Partners page">${[["orgs", "Organisations"], ["projects", "Projects"]].map(([k, l]) => `<button role="tab" data-ptab="${k}" aria-pressed="${(NV.tab || "orgs") === k}">${l}</button>`).join("")}</div>`;
   if (!S.net) { v.innerHTML = `<div class="page net-page"><h1>Partners</h1>${tabsHtml}<p class="summary">${S.netLoading ? "Loading the partner network…" : "Loading…"}</p></div>`; bindPartnerTabs(v); return; }
   const M = networkModel();
   if ((NV.tab || "orgs") === "projects") return renderProjectsTab(v, M, tabsHtml);
   const projOpts = [...M.net.projects.map((p) => ["c:" + p.pid, `${p.acronym} (${(p.start || "").slice(0, 4)})`, M.nercPids.has(p.pid)]),
     ...S.netProjects.filter((p) => p.kind === "manual").map((p) => ["m:" + p.id, p.name, p.nerc !== false])].sort((a, b) => b[2] - a[2] || a[1].localeCompare(b[1]));
-  const inRel = M.orgs.filter((o) => NV.rels.includes(o.rel));
+  const SHOW = [["close", "★ Close partners", (o) => o.close], ["nerc", REL.nerc, (o) => o.rel === "nerc"], ["tuas", REL.tuas, (o) => o.rel === "tuas"],
+    ["potential", REL.potential, (o) => o.rel === "potential"], ["all", "All", () => true]];
+  if (NV.show === "close" && !M.orgs.some((o) => o.close)) NV.show = "nerc";
+  const inRel = M.orgs.filter(SHOW.find((x) => x[0] === NV.show)[2]);
   const q = NV.q.trim().toLowerCase();
-  const shown = inRel.filter((o) => (!NV.closeOnly || o.close) && (!NV.type || o.type === NV.type) && (!NV.project || o.projectKeys.includes(NV.project))
+  const shown = inRel.filter((o) => (!NV.type || o.type === NV.type) && (!NV.project || o.projectKeys.includes(NV.project))
     && (!q || `${o.label} ${o.city} ${o.country} ${o.projectNames.join(" ")} ${o.doc?.contact || ""} ${o.doc?.notes || ""}`.toLowerCase().includes(q)));
-  const relCount = (r) => M.orgs.filter((o) => o.rel === r).length;
   const countries = Object.entries(shown.reduce((m, o) => ((m[o.country || "?"] = (m[o.country || "?"] || 0) + 1), m), {})).sort((a, b) => b[1] - a[1]);
   const types = Object.entries(shown.reduce((m, o) => ((m[o.type] = (m[o.type] || 0) + 1), m), {})).sort((a, b) => b[1] - a[1]);
   const maxC = countries[0]?.[1] || 1;
@@ -1105,8 +1107,7 @@ function renderPartnersPage(v) {
     ${tabsHtml}
     <p>Everyone we have worked with or would like to work with. EU projects come from CORDIS (updated weekly${updated ? `, last on ${updated}` : ""}); mark NERC's own projects and add other projects on the Projects tab. Click an organisation to see its projects and the team's notes.</p>
     <div class="net-bar">
-      <div class="net-rels" role="group" aria-label="Show">${Object.entries(REL).map(([k, l]) => `<label class="check rel-${k}"><input type="checkbox" data-rel="${k}" ${NV.rels.includes(k) ? "checked" : ""}><i></i>${l}<span class="n">${relCount(k)}</span></label>`).join("")}</div>
-      <label class="check close-only"><input type="checkbox" id="close-only" ${NV.closeOnly ? "checked" : ""}>★ Close partners only<span class="n">${M.orgs.filter((o) => o.close).length}</span></label>
+      <div class="seg net-show" role="radiogroup" aria-label="Show">${SHOW.map(([k, l, f]) => `<button role="radio" data-show="${k}" aria-checked="${NV.show === k}" aria-pressed="${NV.show === k}">${l} <span class="n">${M.orgs.filter(f).length}</span></button>`).join("")}</div>
       <span class="spacer"></span>
       <div class="seg" role="group" aria-label="View">${[["map", "Map"], ["list", "List"]].map(([k, l]) => `<button data-mode="${k}" aria-pressed="${NV.mode === k}">${l}</button>`).join("")}</div>
       <button class="btn ghost" id="net-csv">Download CSV</button>
@@ -1138,13 +1139,12 @@ function renderPartnersPage(v) {
   </div>`;
   bindPartnerTabs(v);
   const re = () => refresh();
-  $$("[data-rel]", v).forEach((c) => (c.onchange = () => { NV.rels = $$("[data-rel]:checked", v).map((x) => x.dataset.rel); re(); }));
+  $$("[data-show]", v).forEach((b) => (b.onclick = () => { NV.show = b.dataset.show; LS.set("rv-net-show", NV.show); if (NV.show !== "all") NV.project = ""; re(); }));
   $$("[data-mode]", v).forEach((b) => (b.onclick = () => { NV.mode = b.dataset.mode; LS.set("rv-net-mode", NV.mode); re(); }));
   $$("[data-type]", v).forEach((b) => (b.onclick = () => { NV.type = NV.type === b.dataset.type ? "" : b.dataset.type; re(); }));
   $$("[data-sort]", v).forEach((b) => (b.onclick = () => { NV.sort = b.dataset.sort; re(); }));
   $$(".net-country", v).forEach((b) => (b.onclick = () => { NV.q = NV.q === b.dataset.q ? "" : b.dataset.q; re(); }));
-  $("#close-only").onchange = (e) => { NV.closeOnly = e.target.checked; re(); };
-  $("#net-proj").onchange = (e) => { NV.project = e.target.value; if (NV.project) NV.rels = Object.keys(REL); re(); };
+  $("#net-proj").onchange = (e) => { NV.project = e.target.value; if (NV.project) NV.show = "all"; re(); };
   $("#net-q").oninput = (e) => { NV.q = e.target.value; clearTimeout(renderPartnersPage._t); renderPartnersPage._t = setTimeout(() => { const pos = e.target.selectionStart; re(); const i = $("#net-q"); i?.focus(); i?.setSelectionRange(pos, pos); }, 250); };
   $$("tr[data-org]", v).forEach((r) => { r.onclick = () => openOrg(r.dataset.org); r.onkeydown = (e) => e.key === "Enter" && openOrg(r.dataset.org); });
   $("#net-csv").onclick = () => downloadNetworkCsv(shown);
