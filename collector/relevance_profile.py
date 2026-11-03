@@ -7,7 +7,8 @@ import hashlib
 def to_doc(cfg_profile: dict) -> dict:
     """config.yaml profile -> Firestore document."""
     def pairs(d):
-        return [{"word": str(k), "weight": float(v)} for k, v in (d or {}).items()]
+        # Weights are stored without a sign: the list a word is in says whether it adds or subtracts
+        return [{"word": str(k), "weight": abs(float(v))} for k, v in (d or {}).items()]
     return {
         "organisation": " ".join(str(cfg_profile.get("organisation", "")).split()),
         "keywords": pairs(cfg_profile.get("keywords")),

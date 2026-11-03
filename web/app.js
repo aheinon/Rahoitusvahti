@@ -1610,7 +1610,7 @@ function renderProfile(v) {
   const p = S.profile;
   const when = p?.updatedAt ? new Date(p.updatedAt) : null;
   const chips = (list, cls = "") => (list || []).length
-    ? `<div class="kw-chips">${[...list].sort((a, b) => b.weight - a.weight || a.word.localeCompare(b.word)).map((k) => `<span class="kw ${cls}">${esc(k.word)}<b>${cls ? "−" : ""}${fmtWeight(k.weight)}</b></span>`).join("")}</div>`
+    ? `<div class="kw-chips">${[...list].sort((a, b) => b.weight - a.weight || a.word.localeCompare(b.word)).map((k) => `<span class="kw ${cls}">${esc(k.word)}<b>${cls ? "−" : ""}${fmtWeight(Math.abs(k.weight))}</b></span>`).join("")}</div>`
     : `<p class="summary">None.</p>`;
   v.innerHTML = `<div class="page profile">
     <h1>Relevance profile</h1>
@@ -1642,7 +1642,7 @@ function renderProfile(v) {
   $$("[data-open]", v).forEach((b) => (b.onclick = () => openDrawer(b.dataset.open)));
   $("#pf-edit") && ($("#pf-edit").onclick = () => {
     const base = S.profile || DEFAULT_PROFILE;
-    S.profileDraft = { homeRegion: base.homeRegion || DEFAULT_PROFILE.homeRegion, organisation: base.organisation || "", keywords: structuredClone(base.keywords || []), negative: structuredClone(base.negative || []) };
+    S.profileDraft = { homeRegion: base.homeRegion || DEFAULT_PROFILE.homeRegion, organisation: base.organisation || "", keywords: (base.keywords || []).map((k) => ({ word: k.word, weight: Math.abs(Number(k.weight) || 1) })), negative: (base.negative || []).map((k) => ({ word: k.word, weight: Math.abs(Number(k.weight) || 1) })) };
     refresh();
   });
 }
@@ -1692,7 +1692,7 @@ function renderProfileEditor(v) {
         <p class="hint">Regional ERDF, ESF+ and JTF calls from other regions are hidden by default. National calls are always shown.</p></div>
       <div class="pf-cols">
         <div class="field"><span class="lbl">Keywords and weights</span>${rows("keywords")}<button type="button" class="btn ghost small" data-addrow="keywords">Add keyword</button></div>
-        <div class="field"><span class="lbl">Negative keywords and weights</span>${rows("negative")}<button type="button" class="btn ghost small" data-addrow="negative">Add negative keyword</button></div>
+        <div class="field"><span class="lbl">Negative keywords and weights</span><p class="hint">Write the weight without a minus sign; these always lower the score.</p>${rows("negative")}<button type="button" class="btn ghost small" data-addrow="negative">Add negative keyword</button></div>
       </div>
       <p class="hint">Keywords match parts of words in Finnish and English, so <i>photovolta</i> also matches photovoltaic and photovoltaics. Weights from 1 (weak) to 4 (strong) work well.</p>
       <div class="pf-note ${orgChanged ? "warn" : ""}" id="pf-note">${orgChanged
