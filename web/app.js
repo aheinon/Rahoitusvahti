@@ -103,7 +103,7 @@ const S = {
   netView: { tab: "orgs", mode: LS.get("rv-net-mode", "map"), q: "", type: "", sort: "projects", project: "", show: null }, pieceKind: "", develop: {}, partners: [], allow: [], me: { favorites: [] }, profile: undefined, profileDraft: null,
   view: LS.get("rv-view", "list"),
   filters: migrateFilters(Object.assign({}, DEFAULT_FILTERS, LS.get("rv-filters", {}))),
-  sort: LS.get("rv-sort", "deadline"),
+  sort: LS.get("rv-sort2", "relevance"),
   horizon: LS.get("rv-horizon", 183),          // timeline length in days
   showSummaries: LS.get("rv-summaries", false),
   openId: null,
@@ -525,7 +525,7 @@ function bindList(v) {
   $("#ideaf") && ($("#ideaf").onchange = (e) => { f.idea = e.target.value; upd(); });
   $("#reset-f").onclick = () => { S.filters = { ...DEFAULT_FILTERS, sources: [...DEFAULT_FILTERS.sources], status: [...DEFAULT_FILTERS.status] }; upd(); };
   $("#toggle-f").onclick = () => $("#filters").classList.toggle("open");
-  $$("[data-sort]", v).forEach((b) => (b.onclick = () => { S.sort = b.dataset.sort; LS.set("rv-sort", S.sort); refresh(); }));
+  $$("[data-sort]", v).forEach((b) => (b.onclick = () => { S.sort = b.dataset.sort; LS.set("rv-sort2", S.sort); refresh(); }));
   $("#newonly").onchange = (e) => { f.newOnly = e.target.checked; upd(); };
   const showNew = (on) => { f.newOnly = on; if (on) { f.status = ["open", "forthcoming"]; } upd(); window.scrollTo({ top: $(".layout")?.offsetTop - 10 || 0, behavior: "smooth" }); };
   $("#new-on") && ($("#new-on").onclick = () => showNew(true));
@@ -792,8 +792,17 @@ function renderDrawerBody() {
 function developHtml(c, n) {
   if (!S.store.ideaSearchAvailable() && S.store.mode !== "demo") return "";
   if (!n.idea) {
+    // ideas whose saved idea search found this call, best fit first
+    const hits = allIdeas().map((name) => ({ name, m: (S.ideaDocs[name]?.search?.matches || []).find((x) => x.id === c.id) }))
+      .filter((x) => x.m).sort((a, b) => (b.m.fit || 0) - (a.m.fit || 0));
+    const names = allIdeas();
     return `<section class="develop"><h3>Develop an idea for this call</h3>
-      <p class="hint">Link this call to a project idea in the team notes${isMember() ? " below" : ""}, and Claude can assess how the idea fits the call: gaps, partners needed, risks and next steps.</p></section>`;
+      <p class="hint">Link a project idea, and Claude assesses how it fits this call: gaps, partners needed, risks and next steps.</p>
+      ${hits.length ? `<div class="dev-hits"><span class="lbl">Matched by the idea search</span>${hits.map((h) => `<div class="dev-hit"><b>${esc(h.name)}</b> <span class="hint">fit ${h.m.fit}${h.m.why ? " · " + esc(h.m.why) : ""}</span>${isMember() ? ` <button class="btn small" data-devlink="${esc(h.name)}">Link and develop</button>` : ""}</div>`).join("")}</div>` : ""}
+      ${isMember() ? `<div class="dev-row dev-link"><input id="dev-idea" list="dev-ideas" placeholder="${names.length ? "Choose an idea or type a new name" : "Name a new project idea"}" aria-label="Project idea to link">
+        <datalist id="dev-ideas">${names.map((x) => `<option value="${esc(x)}">`).join("")}</datalist>
+        <button class="btn ghost small" id="dev-link">Link</button></div>` : ""}
+    </section>`;
   }
   const D = S.develop[c.id] || {};
   const desc = D.draft ?? S.ideaDocs[n.idea]?.description ?? "";
@@ -871,6 +880,13 @@ function bindDrawer(c, editable) {
   $("#dr-fav").onclick = () => toggleFav(c.id);
   $$("[data-rmore]", dr).forEach((b) => (b.onclick = () => { const k = c.id + b.dataset.rmore; S.radarOpen = S.radarOpen === k ? null : k; renderDrawerBody(); }));
   $("#dev-desc") && ($("#dev-desc").oninput = (e) => { (S.develop[c.id] ||= {}).draft = e.target.value; });
+  const linkIdea = async (name) => {
+    name = String(name || "").trim(); if (!name) return;
+    await S.store.saveNote(c.id, { idea: name }); toast(`Project idea set: ${name}`);
+  };
+  $$("[data-devlink]", dr).forEach((b) => (b.onclick = () => linkIdea(b.dataset.devlink)));
+  $("#dev-link") && ($("#dev-link").onclick = () => linkIdea($("#dev-idea").value));
+  $("#dev-idea") && ($("#dev-idea").onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); linkIdea(e.target.value); } });
   $("#dev-run") && ($("#dev-run").onclick = () => runDevelop(c));
   $("#dev-post") && ($("#dev-post").onclick = async () => {
     await S.store.addComment(c.id, developText(noteOf(c.id).idea, S.develop[c.id].result), []);
