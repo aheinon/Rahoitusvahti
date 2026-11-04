@@ -1168,7 +1168,7 @@ function renderPartnersPage(v) {
           <div class="net-legend"><span><i class="lg-close"></i>Close partner</span><span><i class="lg-nerc"></i>${REL.nerc}</span><span><i class="lg-tuas"></i>${REL.tuas}</span><span><i class="lg-pot"></i>${REL.potential}</span><span>Circle size = joint projects</span></div>`
           : `<div class="net-table"><table class="t"><thead><tr>
               <th><button class="linkbtn" data-sort="name">Organisation</button></th><th><button class="linkbtn" data-sort="country">Country</button></th><th>Type</th><th><button class="linkbtn" data-sort="projects">Projects together</button></th></tr></thead><tbody>
-              ${[...shown].sort(sorter).map((o) => `<tr class="click" data-org="${esc(o.key)}" tabindex="0"><td><span class="reldot rel-${o.rel}" title="${REL[o.rel]}"></span>${o.close ? `<span class="closestar" title="Close partner">★</span>` : ""}<b>${esc(o.label)}</b>${o.doc?.contact ? `<div class="hint">${esc(o.doc.contact)}</div>` : o.city ? `<div class="hint">${esc(o.city)}</div>` : ""}</td>
+              ${[...shown].sort(sorter).map((o) => `<tr class="click" data-org="${esc(o.key)}" tabindex="0"><td><span class="reldot rel-${o.rel}" title="${REL[o.rel]}"></span>${isMember() ? `<button type="button" class="starbtn ${o.close ? "on" : ""}" data-star="${esc(o.key)}" aria-pressed="${!!o.close}" title="${o.close ? "Remove from close partners" : "Add to close partners"}" aria-label="${o.close ? "Remove " + esc(o.label) + " from close partners" : "Add " + esc(o.label) + " to close partners"}">${o.close ? "★" : "☆"}</button>` : o.close ? `<span class="closestar" title="Close partner">★</span>` : ""}<b>${esc(o.label)}</b>${o.doc?.contact ? `<div class="hint">${esc(o.doc.contact)}</div>` : o.city ? `<div class="hint">${esc(o.city)}</div>` : ""}</td>
                 <td>${esc(o.country)}</td><td>${esc(ORG_TYPE[o.type] || o.type)}</td><td>${o.projectNames.map(esc).join(", ") || `<span class="hint">none yet</span>`}</td></tr>`).join("")}
             </tbody></table></div>`}
       </div>
@@ -1184,7 +1184,12 @@ function renderPartnersPage(v) {
   $$(".net-country", v).forEach((b) => (b.onclick = () => { NV.q = NV.q === b.dataset.q ? "" : b.dataset.q; re(); }));
   $("#net-proj").onchange = (e) => { NV.project = e.target.value; if (NV.project) NV.show = "all"; re(); };
   $("#net-q").oninput = (e) => { NV.q = e.target.value; clearTimeout(renderPartnersPage._t); renderPartnersPage._t = setTimeout(() => { const pos = e.target.selectionStart; re(); const i = $("#net-q"); i?.focus(); i?.setSelectionRange(pos, pos); }, 250); };
-  $$("tr[data-org]", v).forEach((r) => { r.onclick = () => openOrg(r.dataset.org); r.onkeydown = (e) => e.key === "Enter" && openOrg(r.dataset.org); });
+  $$("tr[data-org]", v).forEach((r) => { r.onclick = () => openOrg(r.dataset.org); r.onkeydown = (e) => e.target === r && e.key === "Enter" && openOrg(r.dataset.org); });
+  $$("[data-star]", v).forEach((b) => (b.onclick = async (e) => {
+    e.stopPropagation(); b.disabled = true;
+    const o = M.orgs.find((x) => x.key === b.dataset.star);
+    if (o) await toggleClose(o);
+  }));
   $("#net-csv").onclick = () => downloadNetworkCsv(shown);
   $("#org-add").onclick = () => openOrg(null);
   if (NV.mode === "map") drawNetworkMap($("#net-map"), shown, NV.project);
@@ -1319,6 +1324,26 @@ function closeListRow(list, projKey) {
   </td></tr>`;
 }
 
+/** Adds an organisation to close partners (via the partner list) or removes it everywhere it is ticked. */
+async function toggleClose(o) {
+  const d = o.doc || {};
+  if (!o.close) {
+    if (d.id) await S.store.savePartner({ id: d.id, close: true });
+    else await S.store.savePartner({ name: o.name, country: o.country, type: ORG_TYPE[o.type], contact: "", email: "", notes: "", close: true, ...(o.id ? { cordisId: o.id } : {}) });
+    toast(`${o.label} added to close partners`);
+    return;
+  }
+  if (d.id) await S.store.savePartner({ id: d.id, close: false });
+  const keys = new Set((o.aliases || [o.name]).map(normName));
+  for (const np of S.netProjects) {
+    if (np.kind === "cordis" && o.id && (np.close || []).includes(o.id)) await S.store.saveNetProject({ id: np.id, close: np.close.filter((x) => x !== o.id) });
+    if (np.kind === "portfolio" && (np.close || []).some((x) => keys.has(x))) await S.store.saveNetProject({ id: np.id, close: np.close.filter((x) => !keys.has(x)) });
+    if (np.kind === "manual" && (np.partners || []).some((x) => x.close && keys.has(normName(x.name))))
+      await S.store.saveNetProject({ id: np.id, partners: np.partners.map((x) => (keys.has(normName(x.name)) ? { ...x, close: false } : x)) });
+  }
+  toast(`${o.label} removed from close partners`);
+}
+
 /** Organisation card: projects together (automatic) + the team's notes (partner list). key null = new potential partner. */
 function openOrg(key) {
   const M = networkModel();
@@ -1368,22 +1393,7 @@ function openOrg(key) {
       S.orgInfo = await S.store.loadOrgInfo(); closeModal(); openOrg(o.key); toast("Description saved");
     };
   });
-  $("#og-close") && ($("#og-close").onclick = async () => {
-    if (!o.close) {
-      if (d.id) await S.store.savePartner({ id: d.id, close: true });
-      else await S.store.savePartner({ name: o.name, country: o.country, type: ORG_TYPE[o.type], contact: "", email: "", notes: "", close: true, ...(o.id ? { cordisId: o.id } : {}) });
-      toast(`${o.label} added to close partners`);
-    } else {
-      if (d.id) await S.store.savePartner({ id: d.id, close: false });
-      for (const np of S.netProjects) {
-        if (np.kind === "cordis" && o.id && (np.close || []).includes(o.id)) await S.store.saveNetProject({ id: np.id, close: np.close.filter((x) => x !== o.id) });
-        if (np.kind === "manual" && (np.partners || []).some((x) => x.close && normName(x.name) === normName(o.name)))
-          await S.store.saveNetProject({ id: np.id, partners: np.partners.map((x) => (normName(x.name) === normName(o.name) ? { ...x, close: false } : x)) });
-      }
-      toast(`${o.label} removed from close partners`);
-    }
-    closeModal(); setTimeout(() => openOrg(o.key), 400);
-  });
+  $("#og-close") && ($("#og-close").onclick = async () => { await toggleClose(o); closeModal(); setTimeout(() => openOrg(o.key), 400); });
   $("#orgform").onsubmit = async (e) => {
     e.preventDefault();
     const f = Object.fromEntries(new FormData(e.target));

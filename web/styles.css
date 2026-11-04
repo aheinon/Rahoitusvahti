@@ -553,6 +553,9 @@ tr.click:hover { background: var(--hover); }
 @media (max-width: 640px) { .net-filters { grid-template-columns: 1fr; } }
 .close-only { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; margin: 0; }
 .closestar { color: var(--soon); margin-right: 4px; }
+.starbtn { background: none; border: 0; padding: 0 4px 0 0; margin: 0; font-size: 1.05em; line-height: 1; cursor: pointer; color: var(--ink-3); }
+.starbtn.on { color: var(--soon); }
+.starbtn:hover, .starbtn:focus-visible { color: var(--soon); }
 .net-legend i.lg-close { display: inline-block; width: 12px; height: 12px; border-radius: 50%; background: var(--sun); box-shadow: 0 0 0 2px var(--ink); }
 .close-row td { background: var(--surface); }
 .close-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 4px 16px; margin: 6px 0 4px; }
