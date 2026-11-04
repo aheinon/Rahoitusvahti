@@ -222,7 +222,7 @@ def main() -> int:
     log(f"Describe: {len(todo)} organisations need a description, doing {min(limit, len(todo))}")
     todo = todo[:limit]
     d = Describer(cfg)
-    results = {}
+    results, saved = {}, set()
     with ThreadPoolExecutor(max_workers=int(cfg.get("parallel_requests", 4))) as pool:
         for i, (o, r) in enumerate(zip(todo, pool.map(d.describe, todo)), 1):
             if r:
@@ -230,7 +230,9 @@ def main() -> int:
                 log(f"  {'-' if r.get('notFound') else '+'} {o['name']}" + (f"  ({r['website']})" if r.get("website") else ""))
             if i % 25 == 0:
                 log(f"  {i}/{len(todo)} done, {d.searches} searches")
-    store.save_org_info(results)
+                store.save_org_info({k: v for k, v in results.items() if k not in saved})   # a cancelled run keeps its work
+                saved.update(results)
+    store.save_org_info({k: v for k, v in results.items() if k not in saved})
     found = sum(1 for r in results.values() if not r.get("notFound"))
     log(f"Done: {found} described, {len(results) - found} not identified. "
         f"{d.searches} web searches, {d.tokens_in} input / {d.tokens_out} output tokens")
