@@ -29,22 +29,23 @@ def data():
                     "orgs": [{"name": "SOLARIGO SYSTEMS OY", "country": "FI", "type": "PRC", "projects": ["1"]},
                              {"name": "FUNDACION CIRCE", "country": "ES", "type": "REC", "projects": ["1"]},
                              {"name": "RANDOM GMBH", "country": "DE", "type": "PRC", "projects": ["2"]}]},
-        "netProjects": [], "partners": [{"name": "Fortum"}]}
+        "netProjects": [{"id": "m1", "kind": "manual", "name": "CoVE", "partners": [{"name": "Omnia", "country": "FI"}, {"name": "Valonia"}]}],
+        "partners": [{"name": "Fortum"}]}
 
 
 def test_select_energy_scope():
     names = [o["name"] for o in describe.select(data())]
     # CORDIS partners of NERC projects (acronym matches a NERC register project), register energy
     # partners, the team's partner list; the register's Solarigo is the same as CORDIS's
-    assert names == ["SOLARIGO SYSTEMS OY", "FUNDACION CIRCE", "Valonia", "Fortum"]
+    assert names == ["SOLARIGO SYSTEMS OY", "FUNDACION CIRCE", "Valonia", "Fortum", "Omnia"]
     valonia = next(o for o in describe.select(data()) if o["name"] == "Valonia")
     assert valonia["country"] == "FI" and valonia["alt"] == ["Valonia (Turku)"] and valonia["projects"] == ["HEALTH (ESR, 2022)"]
-    assert len(describe.select(data(), "all")) == 6
+    assert len(describe.select(data(), "all")) == 7
 
 
 def test_select_respects_team_untick():
     d = data()
-    d["netProjects"] = [{"id": "pf-a1", "nerc": False}]          # the team said SUNVIBE is not ours
+    d["netProjects"].append({"id": "pf-a1", "nerc": False})          # the team said SUNVIBE is not ours
     names = [o["name"] for o in describe.select(d)]
     assert "FUNDACION CIRCE" not in names and "Valonia" in names
 

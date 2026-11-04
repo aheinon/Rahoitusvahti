@@ -117,8 +117,12 @@ def select(data: dict, scope: str = "energy") -> list[dict]:
         if in_scope:
             add(o["name"], o.get("variants", []), "" if o.get("intl") else "FI", o.get("type", "OTH"),
                 [f"{p.get('acronym') or p.get('title')} ({p.get('instrument')}, {p.get('start')})" for p in projs])
-    for d in data.get("partners", []):
+    for d in data.get("partners", []):                     # the team's partner list (potential partners too)
         add(d.get("name", ""), country=d.get("country", ""), typ="OTH")
+    for mp in docs.values():                                # partners of projects the team added by hand
+        if mp.get("kind") == "manual":
+            for pt in mp.get("partners", []):
+                add(pt.get("name", ""), country=pt.get("country", ""), typ="OTH", projects=[mp.get("name", "")])
     return out
 
 
