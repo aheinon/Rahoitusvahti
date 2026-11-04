@@ -71,7 +71,8 @@ GitHub Actions (nightly)                 GitHub Pages (web/)
 - **Partner descriptions**: `collector/describe.py` (monthly, or by hand) has Claude search the web and
   write 2-3 sentences on each partner (what it is, what it does, its energy/RDI expertise), its website
   and location. The card says the text is written by Claude and may contain errors; anyone in the team can
-  edit it, and edited texts are never overwritten.
+  edit it, and edited texts are never overwritten. *Write with Claude* on a card writes one right away
+  (10-15 s, through the worker); a website or hint given there makes a rewrite better than the first try.
 - **Who won similar calls**: for every Horizon Europe call, the funded projects closest to it (same topic
   in earlier rounds, or most similar by text) with their consortia. Organisations you have worked with or
   have on the partner list are highlighted.

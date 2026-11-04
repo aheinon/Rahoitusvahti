@@ -9,7 +9,10 @@
 // 4. returns {matches, strengthen, note} with only ids that were in the list.
 // With {mode: "develop"} it instead analyses one linked project idea against one call, using the
 // call's full text that the collector stores in texts/{callId}, and returns {fit, verdict, gaps, ...}.
+// With {mode: "describe"} it writes a short description of one partner organisation with web search
+// (and reads the website the team gave, if any) and returns the orgInfo fields; the app saves them.
 
+import { buildDescribePrompt, cleanDescription, DESCRIBE_LIMITS } from "../../web/describe-prompt.js";
 import { buildDevelopPrompt, buildIdeaPrompt, cleanDevelop, cleanMatches, DEFAULT_PROFILE, DEVELOP_LIMITS, IDEA_LIMITS } from "../../web/idea-prompt.js";
 
 export default {
@@ -60,6 +63,20 @@ export default {
     } catch { /* fall back below */ }
     org = org || env.ORG_PROFILE || DEFAULT_PROFILE.organisation;
     const today = new Date().toISOString().slice(0, 10);
+
+    if (body.mode === "describe") {
+      const str = (x, n) => String(x || "").trim().slice(0, n);
+      const name = str(body.name, DESCRIBE_LIMITS.name);
+      if (!name) return reply({ error: "No organisation name." }, 400);
+      const website = /^https?:\/\/[^\s]+$/i.test(str(body.website, DESCRIBE_LIMITS.website)) ? str(body.website, DESCRIBE_LIMITS.website) : "";
+      const input = { name, website, hint: str(body.hint, DESCRIBE_LIMITS.hint), country: str(body.country, 2), type: str(body.type, 3),
+        alt: (Array.isArray(body.alt) ? body.alt : []).slice(0, DESCRIBE_LIMITS.alt).map((x) => str(x, DESCRIBE_LIMITS.name)).filter(Boolean),
+        projects: (Array.isArray(body.projects) ? body.projects : []).slice(0, DESCRIBE_LIMITS.projects).map((x) => str(x, DESCRIBE_LIMITS.project)).filter(Boolean) };
+      const res = await askClaudeWithWeb(env, buildDescribePrompt(input), !!website);
+      if (res.error) return reply({ error: res.error }, 502);
+      console.log("describe", email, name, res.usage?.input_tokens, "in", res.usage?.server_tool_use?.web_search_requests, "searches");
+      return reply({ ...cleanDescription(res.json, res.sources, env.MODEL || "claude-haiku-5-5"), usage: res.usage });
+    }
 
     if (body.mode === "develop") {
       const ideaName = String(body.ideaName || "").trim().slice(0, IDEA_LIMITS.name);
@@ -112,6 +129,44 @@ async function askClaude(env, prompt, maxTokens) {
   let json = {};
   try { json = JSON.parse(text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1)); } catch { /* empty result */ }
   return { json, usage: data.usage || null };
+}
+
+/** Asks Claude with the web search tool (and web fetch when a website is given). Falls back to the
+ * older tool versions if the account or model does not accept the newer ones. */
+async function askClaudeWithWeb(env, prompt, fetchSite) {
+  const versions = [
+    { search: "web_search_20260209", fetch: "web_fetch_20260209", beta: null },
+    { search: "web_search_20250305", fetch: "web_fetch_20250910", beta: "web-fetch-2025-09-10" },
+  ];
+  for (const [i, v] of versions.entries()) {
+    const tools = [{ type: v.search, name: "web_search", max_uses: DESCRIBE_LIMITS.searches }];
+    if (fetchSite) tools.push({ type: v.fetch, name: "web_fetch", max_uses: 2, max_content_tokens: 12000 });
+    const headers = { "x-api-key": env.ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json" };
+    if (v.beta && fetchSite) headers["anthropic-beta"] = v.beta;
+    const ar = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST", headers,
+      body: JSON.stringify({ model: env.MODEL || "claude-haiku-5-5", max_tokens: 2000, tools, messages: [{ role: "user", content: prompt }] }),
+    });
+    if (!ar.ok) {
+      const detail = await ar.text();
+      if (ar.status === 400 && i === 0 && /web_(search|fetch)/.test(detail)) continue;     // try the older tool versions
+      console.log("Claude API error", ar.status, detail.slice(0, 500));
+      return { error: ar.status === 429 ? "Claude is busy right now. Try again in a minute."
+        : /web search|web_search/i.test(detail) ? "Web search is not enabled for the Claude account." : "Claude could not answer. Try again." };
+    }
+    const data = await ar.json();
+    const blocks = data.content || [];
+    const text = blocks.filter((b) => b.type === "text").map((b) => b.text).join("");
+    const sources = [];
+    for (const b of blocks) {
+      if (b.type === "web_search_tool_result" && Array.isArray(b.content)) for (const r of b.content) if (r.url) sources.push(r.url);
+      if (b.type === "web_fetch_tool_result" && b.content?.url) sources.unshift(b.content.url);
+    }
+    let json = {};
+    try { json = JSON.parse(text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1)); } catch { /* empty */ }
+    return { json, sources, usage: data.usage || null };
+  }
+  return { error: "Claude could not answer. Try again." };
 }
 
 function emailFromToken(token) {

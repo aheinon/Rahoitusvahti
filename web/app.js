@@ -1450,8 +1450,8 @@ function openOrg(key) {
       <div id="og-same-box" class="og-same" hidden><input id="og-same-q" type="search" placeholder="Type part of the other name" aria-label="Find the same organisation under another name" autocomplete="off"><div id="og-same-list" class="og-same-list"></div></div>` : ""}
     ${o?.merged?.length ? `<p class="hint">Also listed as: ${o.merged.map((m) => `${esc(m.name)}${isMember() ? ` <button class="linkbtn" data-unmerge="${esc(m.key)}">undo</button>` : ""}`).join(" · ")}</p>` : ""}
     ${info?.description ? `<div class="org-desc"><p>${esc(info.description)}</p>
-      <p class="hint">${info.website ? `<a href="${esc(safeUrl(info.website))}" target="_blank" rel="noopener noreferrer">${esc(info.website.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, ""))}</a> · ` : ""}${info.editedBy ? "Edited by the team" : `Written by Claude from web sources${info.at ? " on " + esc(fmtDate(String(info.at).slice(0, 10))) : ""}; may contain errors`}${isMember() ? ` · <button class="linkbtn" id="og-desc-edit">Edit</button>` : ""}</p></div>`
-      : o && isMember() ? `<p class="hint">${info?.notFound ? "Claude could not identify this organisation from the web." : "No description yet."} Descriptions are written by Claude in a monthly run, or <button class="linkbtn" id="og-desc-edit">write one</button>.</p>` : ""}
+      <p class="hint">${info.website ? `<a href="${esc(safeUrl(info.website))}" target="_blank" rel="noopener noreferrer">${esc(info.website.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, ""))}</a> · ` : ""}${info.editedBy ? "Edited by the team" : `Written by Claude from web sources${info.at ? " on " + esc(fmtDate(String(info.at).slice(0, 10))) : ""}; may contain errors`}${isMember() ? ` · <button class="linkbtn" id="og-desc-edit">Edit</button> · <button class="linkbtn" id="og-ai">Rewrite with Claude</button>` : ""}</p></div>`
+      : o && isMember() ? `<p class="hint">${info?.notFound ? "Claude could not identify this organisation from the web." : "No description yet."} <button class="linkbtn" id="og-ai">Write with Claude</button> or <button class="linkbtn" id="og-desc-edit">write one yourself</button>.</p>` : ""}
     ${projects.length ? `<div class="field"><span class="lbl">Projects together <span class="hint">(${projects.length})</span></span><ul class="org-projects">${projects.map((x) => x.pf
       ? `<li><b>${esc(x.pf.acronym)}</b> <span class="hint">${esc(x.pf.instrument || "")} ${esc(x.pf.start || "")}${x.pf.end && x.pf.end !== x.pf.start ? "–" + esc(x.pf.end) : ""}${x.pf.nerc ? " · ours" : " · Turku UAS"}${x.pf.stage && !/ended|archived|implementation/i.test(x.pf.stage) ? " · " + esc(x.pf.stage.toLowerCase()) : ""}</span></li>`
       : x.manual
@@ -1483,6 +1483,36 @@ function openOrg(key) {
       const web = $("#og-web").value.trim();
       await S.store.saveOrgInfo(normName(o.name), { description: $("#og-desc").value.trim(), website: /^https?:\/\//i.test(web) ? web : "" });
       S.orgInfo = await S.store.loadOrgInfo(); closeModal(); openOrg(o.key); toast("Description saved");
+    };
+  });
+  $("#og-ai") && ($("#og-ai").onclick = () => {
+    const box = document.createElement("div");
+    box.className = "field og-ai";
+    box.innerHTML = `<p class="hint">Claude searches the web and writes 2-3 sentences, about 10-15 seconds and a few cents. ${info?.description ? "Without new information the result is usually much the same, so give the website or a hint if you can." : "The website or a hint helps Claude find the right organisation."}</p>
+      <label for="og-ai-web">Website <span class="hint">(optional; Claude reads it first)</span></label><input id="og-ai-web" type="url" placeholder="https://…" value="${esc(info?.website || "")}">
+      <label for="og-ai-hint">Hint <span class="hint">(optional)</span></label><input id="og-ai-hint" maxlength="400" placeholder="e.g. the Dutch university of applied sciences, not the university">
+      <div class="dev-row"><button type="button" class="btn small" id="og-ai-go">Write description</button><span id="og-ai-status" class="hint" role="status"></span></div>
+      <div id="og-ai-out"></div>`;
+    $("#og-ai").closest("p, .org-desc").replaceWith(box);
+    let ctrl = null;
+    $("#og-ai-go").onclick = async () => {
+      const go = $("#og-ai-go");
+      if (ctrl) { ctrl.abort(); return; }
+      ctrl = new AbortController(); go.textContent = "Cancel"; $("#og-ai-status").textContent = "Writing… about 10-15 seconds"; $("#og-ai-out").innerHTML = "";
+      const web = $("#og-ai-web").value.trim();
+      try {
+        const r = await S.store.describeOrg({ name: o.name, alt: [...new Set([...o.aliases, o.label])].filter((n) => n !== o.name).slice(0, 4),
+          country: o.country, type: o.type, projects: o.projectNames.slice(0, 6), website: /^https?:\/\//i.test(web) ? web : "", hint: $("#og-ai-hint").value.trim() }, ctrl.signal);
+        if (r.notFound) { $("#og-ai-status").textContent = r.person ? "This looks like a person's name, so no description was written." : "Claude could not identify the organisation. Add its website or a hint and try again."; return; }
+        const { usage, ...doc } = r;
+        $("#og-ai-status").textContent = "";
+        $("#og-ai-out").innerHTML = `<div class="org-desc"><p>${esc(doc.description)}</p><p class="hint">${esc([doc.website, [doc.city, doc.country].filter(Boolean).join(", ")].filter(Boolean).join(" · "))}</p>
+          <div class="dev-row"><button type="button" class="btn small" id="og-ai-keep">Keep this</button><button type="button" class="btn ghost small" id="og-ai-drop">Discard</button></div></div>`;
+        $("#og-ai-keep").onclick = async () => { await S.store.saveOrgAi(normName(o.name), doc); S.orgInfo = await S.store.loadOrgInfo(); closeModal(); refresh(); openOrg(o.key); toast("Description saved"); };
+        $("#og-ai-drop").onclick = () => { closeModal(); openOrg(o.key); };
+      } catch (e) {
+        $("#og-ai-status").textContent = e.code === "cancelled" ? "Cancelled." : e.code === "not_configured" ? "The Claude service is not set up (see README step 6)." : e.message || "Something went wrong. Try again.";
+      } finally { ctrl = null; go.textContent = "Write description"; }
     };
   });
   $("#og-close") && ($("#og-close").onclick = async () => { await toggleClose(o); closeModal(); setTimeout(() => openOrg(o.key), 400); });

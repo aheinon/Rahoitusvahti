@@ -189,6 +189,11 @@ export async function createFirebaseStore(config) {
     async saveOrgInfo(key, patch) {
       await F.setDoc(F.doc(db, "orgInfo", key), { ...patch, editedBy: store.user.email, editedAt: new Date().toISOString() }, { merge: true });
     },
+    /** Claude's description from the card's "Write with Claude": replaces the text, also a team-edited one. */
+    async saveOrgAi(key, doc) {
+      await F.setDoc(F.doc(db, "orgInfo", key), { ...doc, editedBy: F.deleteField(), editedAt: F.deleteField(), requestedBy: store.user.email }, { merge: true });
+    },
+    async describeOrg(payload, signal) { return callWorker({ mode: "describe", ...payload }, signal); },
     /** Marks two names as the same organisation (orgInfo/{key}.sameAs = target key; "" undoes it). */
     async saveOrgMerge(key, sameAs) {
       await F.setDoc(F.doc(db, "orgInfo", key), { sameAs, mergedBy: store.user.email, mergedAt: new Date().toISOString() }, { merge: true });
@@ -399,6 +404,8 @@ export async function createDemoStore() {
     async savePortfolio({ projectChunks, orgChunks, meta }) { st.portfolio = { projects: projectChunks.flat(), orgs: orgChunks.flat(), meta: { ...meta, importedBy: store.user.email, importedAt: new Date().toISOString() } }; save(); },
     async loadOrgInfo() { return structuredClone(st.orgInfo); },
     async saveOrgInfo(key, patch) { st.orgInfo[key] = { ...(st.orgInfo[key] || {}), ...patch }; save(); },
+    async saveOrgAi(key, doc) { const { editedBy, editedAt, ...rest } = st.orgInfo[key] || {}; st.orgInfo[key] = { ...rest, ...doc, requestedBy: store.user.email }; save(); },
+    async describeOrg() { await new Promise((r) => setTimeout(r, 600)); throw { code: "not_available", message: "Writing descriptions needs web search, which the demo does not have. In the live app this takes about 10-15 seconds." }; },
     async saveOrgMerge(key, sameAs) { st.orgInfo[key] = { ...(st.orgInfo[key] || {}), sameAs, mergedBy: store.user.email, mergedAt: new Date().toISOString() }; save(); },
     watchNetProjects(cb) { return watch(listeners.netProjects, cb, st.netProjects); },
     async saveNetProject(p) {

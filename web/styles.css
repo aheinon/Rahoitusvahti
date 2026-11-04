@@ -594,3 +594,5 @@ tr.click:hover { background: var(--hover); }
 .dup-row { display: flex; gap: 8px; align-items: baseline; padding: 3px 0; cursor: pointer; }
 .dup-actions { margin-top: 8px; display: flex; gap: 8px; flex-wrap: wrap; }
 .row-desc { max-width: 60ch; white-space: normal; }
+.og-ai input { width: 100%; margin-bottom: 8px; }
+.og-ai .org-desc { margin-top: 10px; }
