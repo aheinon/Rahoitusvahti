@@ -59,6 +59,8 @@ def test_clean():
     assert bad["website"] == "" and bad["lat"] is None and bad["type"] == ""
     assert describe.clean({"found": True, "person": True}, [], "m")["notFound"]
     assert describe.clean({}, [], "m")["notFound"]
+    meta = "A Bulgarian company. Its activities could not be confirmed because the search tool reached its usage limit."
+    assert describe.clean({"found": True, "description": meta}, [], "m")["notFound"]
 
 
 def test_describer_parses_response():

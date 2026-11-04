@@ -52,7 +52,15 @@ Use web search to find its official website and what it does. Then reply with ON
   "city": "<city or null>", "country": "<ISO 3166-1 alpha-2 code, e.g. FI, DE; null if unknown>",
   "lat": <latitude of the city, or null>, "lon": <longitude of the city, or null>,
   "type": "<HES (university), REC (research organisation), PRC (company), PUB (public body) or OTH>"}}
-If you cannot tell which organisation is meant, set "found" to false and leave the rest null."""
+If you cannot tell which organisation is meant, set "found" to false and leave the rest null.
+You can search at most {searches} times, so make each search count (start with the name and country).
+The description is shown to readers as a profile of the organisation: write only facts about it.
+Never mention searching, sources, tools, limits or what you could not find. If you know too little
+to say what the organisation does, set "found" to false."""
+
+# Descriptions that talk about the search instead of the organisation are not kept
+META = re.compile(r"search tool|usage limit|could not be (confirmed|found|determined|verified)|search results?|"
+                  r"no (further|additional) information|not (enough|sufficient) information|unable to (find|confirm)", re.I)
 
 TYPE_HINT = {"HES": "university or school", "REC": "research organisation", "PRC": "company", "PUB": "public body", "OTH": "unknown"}
 
@@ -127,7 +135,7 @@ class Describer:
     def describe(self, org: dict) -> dict | None:
         prompt = PROMPT.format(name=org["name"], alt=f"ALSO KNOWN AS: {', '.join(org['alt'])}\n" if org["alt"] else "",
                                country=org["country"] or "unknown", type=TYPE_HINT.get(org["type"], "unknown"),
-                               projects=", ".join(org["projects"]) or "-")
+                               projects=", ".join(org["projects"]) or "-", searches=self.max_uses)
         for attempt in range(2):
             try:
                 msg = self.client.messages.create(
@@ -161,7 +169,7 @@ class Describer:
 
 def clean(d: dict, sources: list, model: str) -> dict:
     now = datetime.now(timezone.utc).isoformat(timespec="seconds")
-    if not d.get("found") or d.get("person"):
+    if not d.get("found") or d.get("person") or META.search(str(d.get("description") or "")):
         return {"notFound": True, "person": bool(d.get("person")), "at": now, "model": model}
     num = lambda x: float(x) if isinstance(x, (int, float)) else None  # noqa: E731
     web = d.get("website") if isinstance(d.get("website"), str) and d["website"].startswith("http") else ""
@@ -194,6 +202,8 @@ def main() -> int:
             return True
         if old.get("sameAs"):
             return False                                     # merged into another organisation by the team
+        if not old.get("editedBy") and META.search(old.get("description") or ""):
+            return True                                      # an earlier text about the search, not the organisation
         if not old.get("at") and not old.get("editedBy"):
             return True                                      # only a merge note, no description yet
         if old.get("editedBy"):
