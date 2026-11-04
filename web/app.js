@@ -1056,11 +1056,11 @@ function networkModel() {
   const byName = new Map(), byId = new Map();
   const remember = (o, ...names) => names.forEach((n) => { const k = normName(n); if (k && !byName.has(k)) byName.set(k, o); });
   const orgs = net.orgs.map((o) => {
-    const x = { ...o, key: "c:" + o.id, nercProjects: o.projects.filter((p) => nercPids.has(p)), manual: [], pf: [], doc: null, aliases: [o.name] };
+    const x = { ...o, key: "c:" + o.id, ids: [o.id], nercProjects: o.projects.filter((p) => nercPids.has(p)), manual: [], pf: [], doc: null, aliases: [o.name] };
     remember(x, o.name); byId.set(o.id, x);
     return x;
   });
-  const add = (key, base) => { const o = { geo: null, projects: [], coordinated: [], nercProjects: [], manual: [], pf: [], doc: null, aliases: [base.name], ...base, key }; orgs.push(o); remember(o, o.name); return o; };
+  const add = (key, base) => { const o = { geo: null, ids: [], projects: [], coordinated: [], nercProjects: [], manual: [], pf: [], doc: null, aliases: [base.name], ...base, key }; orgs.push(o); remember(o, o.name); return o; };
   // candidate names: "Turun yliopisto (University of Turku)" -> itself, "Turun yliopisto", "University of Turku", + register variants
   const pfOrg = new Map(pf.orgs.map((o) => [o.name, o]));
   const candidates = (name) => {
@@ -1093,15 +1093,31 @@ function networkModel() {
       || add("p:" + d.id, { id: "", name: d.name, country: String(d.country || "").toUpperCase().slice(0, 2), city: "", type: typeCode(d.type) });
     o.doc = d;
   }
+  // the team's merges: orgInfo/{name}.sameAs = {target name}; the source's projects move to the target
+  const gone = new Set();
+  for (const [k, inf] of Object.entries(S.orgInfo || {})) {
+    if (!inf?.sameAs) continue;
+    const src = byName.get(k), dst = byName.get(inf.sameAs);
+    if (!src || !dst || src === dst || gone.has(src) || gone.has(dst)) continue;
+    for (const f of ["ids", "projects", "coordinated", "nercProjects"]) dst[f] = [...new Set([...dst[f], ...src[f]])];
+    dst.manual.push(...src.manual); dst.pf.push(...src.pf.filter((x) => !dst.pf.some((y) => y.id === x.id)));
+    dst.merged = [...(dst.merged || []), ...(src.merged || []), { name: src.name, key: k }];
+    for (const n of src.aliases) if (!dst.aliases.includes(n)) dst.aliases.push(n);
+    dst.doc ||= src.doc; dst.geo ||= src.geo; dst.country ||= src.country; dst.city ||= src.city;
+    if (dst.type === "OTH") dst.type = src.type;
+    for (const [n, o] of byName) if (o === src) byName.set(n, dst);
+    gone.add(src);
+  }
+  if (gone.size) orgs.splice(0, orgs.length, ...orgs.filter((o) => !gone.has(o)));
   for (const o of orgs) {
     o.label = o.doc?.name || o.name;
-    o.info = o.aliases.map((n) => S.orgInfo?.[normName(n)]).find(Boolean) || null;
+    o.info = o.aliases.map((n) => S.orgInfo?.[normName(n)]).find((x) => x && (x.description || x.lat != null || x.notFound)) || null;
     const euAcr = new Set(o.projects.map((p) => normName(projById[p]?.acronym || "")));
     o.pfOnly = o.pf.filter((x) => !euAcr.has(normName(x.acronym)));          // the same EU project is listed once
     o.count = o.projects.length + o.manual.length + o.pfOnly.length;
     o.nercCount = o.nercProjects.length + o.manual.filter((m) => m.nerc).length + o.pfOnly.filter((x) => x.nerc).length;
     o.rel = o.nercCount ? "nerc" : o.count ? "tuas" : "potential";
-    o.close = (o.id && closeIds.has(o.id)) || o.manual.some((m) => m.close) || o.pf.some((x) => x.close) || !!o.doc?.close;
+    o.close = o.ids.some((i) => closeIds.has(i)) || o.manual.some((m) => m.close) || o.pf.some((x) => x.close) || !!o.doc?.close;
     o.nerc = o.rel === "nerc";
     if (!o.country && o.info?.country) o.country = String(o.info.country).toUpperCase();
     if (!o.city && o.info?.city) o.city = o.info.city;
@@ -1111,7 +1127,76 @@ function networkModel() {
     o.projectNames = [...o.projects.map((p) => projById[p]?.acronym || p), ...o.manual.map((m) => m.name), ...o.pfOnly.map((x) => x.acronym)];
     o.projectKeys = [...o.projects.map((p) => "c:" + p), ...o.manual.map((m) => "m:" + m.id), ...o.pf.map((x) => "h:" + x.id)];
   }
-  return { orgs, projById, nercPids, pfNerc, net, pf };
+  return { orgs, projById, nercPids, pfNerc, net, pf, byName };
+}
+
+// legal forms and filler words that differ between spellings of the same organisation
+const NAME_NOISE = new Set("OY OYJ AB AS ASA APS A S GMBH AG SE SA SAS SARL SL SLU SPA SRL BV NV LTD LIMITED PLC INC LLC KY RY RF SR STICHTING FUNDACION FUNDACIO FONDAZIONE STIFTUNG ASSOCIATION VEREIN EV E V THE OF DE DER DES DEL DI LA LE FUER FUR AND UND ET Y".split(" "));
+const SYNONYM = { HOGESCHOOL: "UAS", AMMATTIKORKEAKOULU: "UAS", HOCHSCHULE: "UAS", FACHHOCHSCHULE: "UAS", YRKESHOGSKOLA: "UAS", YLIOPISTO: "UNIVERSITY", UNIVERSITEIT: "UNIVERSITY", UNIVERSITAT: "UNIVERSITY", UNIVERSIDAD: "UNIVERSITY", UNIVERSITA: "UNIVERSITY", UNIVERSITE: "UNIVERSITY", UNIVERSIDADE: "UNIVERSITY", UNIWERSYTET: "UNIVERSITY", KAUPUNKI: "CITY", STAD: "CITY", GEMEENTE: "CITY" };
+function nameCore(name) {
+  let s = normName(name).replace(/UNIVERSITY OF APPLIED SCIENCES?/g, "UAS");
+  return s.split(" ").map((w) => SYNONYM[w] || w).filter((w) => w.length > 2 && !NAME_NOISE.has(w)).sort().join(" ");
+}
+const domainOf = (u) => { try { return new URL(u).hostname.replace(/^www\./, "").toLowerCase(); } catch { return ""; } };
+
+/** Groups of organisations that look like the same one: same name without legal forms, or the same website (from the AI descriptions). */
+function duplicateGroups(M) {
+  const dismissed = new Set(LS.get("rv-dup-dismissed", []));
+  const groups = new Map();
+  const put = (k, o) => { if (!k) return; if (!groups.has(k)) groups.set(k, new Set()); groups.get(k).add(o); };
+  for (const o of M.orgs) {
+    const core = nameCore(o.name);
+    if (core.replace(/ /g, "").length >= 4) put("n:" + core, o);
+    const info = o.aliases.map((n) => S.orgInfo?.[normName(n)]).find((x) => x?.website);
+    if (info) put("w:" + domainOf(info.website), o);
+  }
+  const out = [], seen = new Set();
+  for (const [, set] of groups) {
+    const list = [...set];
+    if (list.length < 2 || list.length > 6) continue;
+    const id = list.map((o) => o.key).sort().join("|");
+    if (seen.has(id) || dismissed.has(id)) continue;
+    seen.add(id); out.push({ id, orgs: list.sort((a, b) => (b.key.startsWith("c:") - a.key.startsWith("c:")) || b.count - a.count) });
+  }
+  return out;
+}
+
+async function mergeOrgs(target, others) {
+  for (const o of others) await S.store.saveOrgMerge(normName(o.name), normName(target.name));
+  S.orgInfo = await S.store.loadOrgInfo();
+}
+
+function openDuplicates() {
+  const M = networkModel();
+  const groups = duplicateGroups(M);
+  const row = (o) => `<b>${esc(o.label)}</b> <span class="hint">${esc([o.city, o.country].filter(Boolean).join(", "))} · ${o.count} project${o.count === 1 ? "" : "s"}${o.key.startsWith("c:") ? " · EU" : o.key.startsWith("h:") ? " · register" : ""}</span>`;
+  modal(`<h2>Possible duplicates</h2>
+    <p class="hint">The same organisation can be spelled differently in the EU data, the partner register and the team's list. These look alike by name or website. <b>Merge</b> keeps the first name; you can undo it on the organisation's card. To merge two organisations not listed here, open one and use <i>Same organisation as…</i></p>
+    ${groups.length ? groups.map((g, i) => `<div class="dup-group">${g.orgs.map((o, j) => `<label class="dup-row"><input type="radio" name="dup${i}" value="${esc(o.key)}" ${j === 0 ? "checked" : ""}> ${row(o)}</label>`).join("")}
+      <div class="dup-actions"><button class="btn small" data-dmerge="${i}">Merge, keep the selected name</button> <button class="btn ghost small" data-ddismiss="${i}">Not the same</button></div></div>`).join("")
+      : `<p>No likely duplicates found.</p>`}
+    <div class="modal-actions">${groups.length > 1 ? `<button class="btn" id="dup-all">Merge all ${groups.length}, keeping the selected names</button>` : ""}<button class="btn ghost" data-close>Close</button></div>`);
+  $("#dup-all") && ($("#dup-all").onclick = async () => {
+    $("#dup-all").disabled = true;
+    for (let i = 0; i < groups.length; i++) {
+      const sel = $(`input[name="dup${i}"]:checked`); if (!sel) continue;      // dismissed groups are gone
+      const target = groups[i].orgs.find((o) => o.key === sel.value);
+      for (const o of groups[i].orgs) if (o !== target) await S.store.saveOrgMerge(normName(o.name), normName(target.name));
+    }
+    S.orgInfo = await S.store.loadOrgInfo(); toast(`Merged ${groups.length} groups`); closeModal(); refresh();
+  });
+  $$("[data-dmerge]").forEach((b) => (b.onclick = async () => {
+    const g = groups[+b.dataset.dmerge];
+    const key = $(`input[name="dup${b.dataset.dmerge}"]:checked`).value;
+    const target = g.orgs.find((o) => o.key === key);
+    b.disabled = true;
+    await mergeOrgs(target, g.orgs.filter((o) => o !== target));
+    toast(`Merged into ${target.label}`); closeModal(); refresh(); setTimeout(openDuplicates, 300);
+  }));
+  $$("[data-ddismiss]").forEach((b) => (b.onclick = () => {
+    LS.set("rv-dup-dismissed", [...LS.get("rv-dup-dismissed", []), groups[+b.dataset.ddismiss].id]);
+    b.closest(".dup-group").remove();
+  }));
 }
 
 const callsOfPartner = (docId) => Object.entries(S.notes).filter(([, n]) => (n.partners || []).includes(docId)).map(([id]) => S.byId.get(id)).filter(Boolean);
@@ -1148,6 +1233,7 @@ function renderPartnersPage(v) {
       <div class="seg net-show" role="radiogroup" aria-label="Show">${SHOW.map(([k, l, f]) => `<button role="radio" data-show="${k}" aria-checked="${NV.show === k}" aria-pressed="${NV.show === k}">${l} <span class="n">${M.orgs.filter(f).length}</span></button>`).join("")}</div>
       <span class="spacer"></span>
       <div class="seg" role="group" aria-label="View">${[["map", "Map"], ["list", "List"]].map(([k, l]) => `<button data-mode="${k}" aria-pressed="${NV.mode === k}">${l}</button>`).join("")}</div>
+      ${isMember() ? (() => { const n = duplicateGroups(M).length; return n ? `<button class="btn ghost" id="net-dups">Possible duplicates (${n})</button>` : ""; })() : ""}
       <button class="btn ghost" id="net-csv">Download CSV</button>
     </div>
     <div class="net-filters">
@@ -1191,6 +1277,7 @@ function renderPartnersPage(v) {
     if (o) await toggleClose(o);
   }));
   $("#net-csv").onclick = () => downloadNetworkCsv(shown);
+  $("#net-dups") && ($("#net-dups").onclick = openDuplicates);
   $("#org-add").onclick = () => openOrg(null);
   if (NV.mode === "map") drawNetworkMap($("#net-map"), shown, NV.project);
 }
@@ -1213,7 +1300,7 @@ function renderProjectsTab(v, M, tabsHtml) {
         <td><a href="https://cordis.europa.eu/project/id/${esc(p.pid)}" target="_blank" rel="noopener noreferrer"><b>${esc(p.acronym)}</b></a>${p.tuasCoordinator ? ` <span class="tag">coordinator</span>` : ""}<div class="hint">${esc(p.title)}</div></td>
         <td>${esc(p.programme)}<div class="hint">${esc(p.topic)}</div></td><td>${esc((p.start || "").slice(0, 4))}–${esc((p.end || "").slice(0, 4))}</td>
         <td>${(() => { const cl = (S.netProjects.find((x) => x.id === "cordis-" + p.pid)?.close || []).length; return `<button class="linkbtn" data-pexp="c:${esc(p.pid)}" aria-expanded="${S.netView.exp === "c:" + p.pid}">${p.partners} partners${cl ? ` · ★ ${cl}` : ""}</button>`; })()}</td></tr>
-        ${S.netView.exp === "c:" + p.pid ? closeListRow(M.orgs.filter((o) => o.projects.includes(p.pid)).map((o) => ({ key: o.id, name: o.name, country: o.country, type: o.type, close: (S.netProjects.find((x) => x.id === "cordis-" + p.pid)?.close || []).includes(o.id), coord: (o.coordinated || []).includes(p.pid) })), "c:" + p.pid) : ""}`).join("")}
+        ${S.netView.exp === "c:" + p.pid ? closeListRow(M.orgs.filter((o) => o.projects.includes(p.pid)).map((o) => ({ key: o.id, name: o.name, country: o.country, type: o.type, close: (S.netProjects.find((x) => x.id === "cordis-" + p.pid)?.close || []).some((i) => o.ids.includes(i)), coord: (o.coordinated || []).includes(p.pid) })), "c:" + p.pid) : ""}`).join("")}
     </tbody></table></div>
     ${portfolioSectionHtml(M)}
   </div>`;
@@ -1336,7 +1423,7 @@ async function toggleClose(o) {
   if (d.id) await S.store.savePartner({ id: d.id, close: false });
   const keys = new Set((o.aliases || [o.name]).map(normName));
   for (const np of S.netProjects) {
-    if (np.kind === "cordis" && o.id && (np.close || []).includes(o.id)) await S.store.saveNetProject({ id: np.id, close: np.close.filter((x) => x !== o.id) });
+    if (np.kind === "cordis" && (np.close || []).some((x) => o.ids.includes(x))) await S.store.saveNetProject({ id: np.id, close: np.close.filter((x) => !o.ids.includes(x)) });
     if (np.kind === "portfolio" && (np.close || []).some((x) => keys.has(x))) await S.store.saveNetProject({ id: np.id, close: np.close.filter((x) => !keys.has(x)) });
     if (np.kind === "manual" && (np.partners || []).some((x) => x.close && keys.has(normName(x.name))))
       await S.store.saveNetProject({ id: np.id, partners: np.partners.map((x) => (keys.has(normName(x.name)) ? { ...x, close: false } : x)) });
@@ -1356,7 +1443,10 @@ function openOrg(key) {
   const info = o?.info;
   modal(`<h2>${o ? esc(o.label) : "Add a potential partner"}</h2>
     ${o ? `<p class="hint org-sub"><span class="reldot rel-${o.rel}"></span>${o.close ? "★ Close partner · " : ""}${REL[o.rel]} · ${esc([o.city, o.country].filter(Boolean).join(", "))} · ${esc(ORG_TYPE[o.type] || o.type)}</p>` : ""}
-    ${o && isMember() ? `<div class="org-close"><button type="button" class="btn ${o.close ? "ghost" : ""} small" id="og-close">${o.close ? "Remove from close partners" : "★ Add to close partners"}</button></div>` : ""}
+    ${o && isMember() ? `<div class="org-close"><button type="button" class="btn ${o.close ? "ghost" : ""} small" id="og-close">${o.close ? "Remove from close partners" : "★ Add to close partners"}</button>
+      <button type="button" class="btn ghost small" id="og-same">Same organisation as…</button></div>
+      <div id="og-same-box" class="og-same" hidden><input id="og-same-q" type="search" placeholder="Type part of the other name" aria-label="Find the same organisation under another name" autocomplete="off"><div id="og-same-list" class="og-same-list"></div></div>` : ""}
+    ${o?.merged?.length ? `<p class="hint">Also listed as: ${o.merged.map((m) => `${esc(m.name)}${isMember() ? ` <button class="linkbtn" data-unmerge="${esc(m.key)}">undo</button>` : ""}`).join(" · ")}</p>` : ""}
     ${info?.description ? `<div class="org-desc"><p>${esc(info.description)}</p>
       <p class="hint">${info.website ? `<a href="${esc(safeUrl(info.website))}" target="_blank" rel="noopener noreferrer">${esc(info.website.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, ""))}</a> · ` : ""}${info.editedBy ? "Edited by the team" : `Written by Claude from web sources${info.at ? " on " + esc(fmtDate(String(info.at).slice(0, 10))) : ""}; may contain errors`}${isMember() ? ` · <button class="linkbtn" id="og-desc-edit">Edit</button>` : ""}</p></div>`
       : o && isMember() ? `<p class="hint">${info?.notFound ? "Claude could not identify this organisation from the web." : "No description yet."} Descriptions are written by Claude in a monthly run, or <button class="linkbtn" id="og-desc-edit">write one</button>.</p>` : ""}
@@ -1394,6 +1484,22 @@ function openOrg(key) {
     };
   });
   $("#og-close") && ($("#og-close").onclick = async () => { await toggleClose(o); closeModal(); setTimeout(() => openOrg(o.key), 400); });
+  $("#og-same") && ($("#og-same").onclick = () => { $("#og-same-box").hidden = false; $("#og-same-q").focus(); });
+  $("#og-same-q") && ($("#og-same-q").oninput = (e) => {
+    const q = normName(e.target.value);
+    const hits = q.length < 2 ? [] : M.orgs.filter((x) => x !== o && x.aliases.some((n) => normName(n).includes(q))).slice(0, 8);
+    $("#og-same-list").innerHTML = hits.map((x) => `<button type="button" class="linkbtn" data-sameas="${esc(x.key)}">${esc(x.label)} <span class="hint">${esc([x.city, x.country].filter(Boolean).join(", "))} · ${x.count} project${x.count === 1 ? "" : "s"}</span></button>`).join("") || (q.length >= 2 ? `<span class="hint">No match</span>` : "");
+    $$("[data-sameas]").forEach((b) => (b.onclick = async () => {
+      const other = M.orgs.find((x) => x.key === b.dataset.sameas);
+      const [target, src] = other.key.startsWith("c:") && !o.key.startsWith("c:") || other.count > o.count ? [other, o] : [o, other];
+      await mergeOrgs(target, [src]); toast(`Merged: ${src.label} → ${target.label}`); closeModal(); refresh();
+      setTimeout(() => openOrg(target.key), 300);
+    }));
+  });
+  $$("[data-unmerge]").forEach((b) => (b.onclick = async () => {
+    await S.store.saveOrgMerge(b.dataset.unmerge, ""); S.orgInfo = await S.store.loadOrgInfo();
+    toast("Merge undone"); closeModal(); refresh(); setTimeout(() => openOrg(o.key), 300);
+  }));
   $("#orgform").onsubmit = async (e) => {
     e.preventDefault();
     const f = Object.fromEntries(new FormData(e.target));

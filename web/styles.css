@@ -586,3 +586,10 @@ tr.click:hover { background: var(--hover); }
 .org-desc p { margin: 0; font-size: 14px; line-height: 1.5; }
 .org-desc p.hint { margin-top: 6px; font-size: 12px; color: var(--ink-3); }
 .ib-head .btn + .btn, .ib-head input + .btn { margin-left: 8px; }
+
+.og-same { margin: 0 0 12px; }
+.og-same input { width: 100%; }
+.og-same-list { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; margin-top: 6px; }
+.dup-group { border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px; margin: 10px 0; }
+.dup-row { display: flex; gap: 8px; align-items: baseline; padding: 3px 0; cursor: pointer; }
+.dup-actions { margin-top: 8px; display: flex; gap: 8px; flex-wrap: wrap; }

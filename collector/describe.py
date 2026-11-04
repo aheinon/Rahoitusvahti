@@ -192,6 +192,10 @@ def main() -> int:
         old = info.get(o["key"])
         if not old:
             return True
+        if old.get("sameAs"):
+            return False                                     # merged into another organisation by the team
+        if not old.get("at") and not old.get("editedBy"):
+            return True                                      # only a merge note, no description yet
         if old.get("editedBy"):
             return False                                     # the team's own text is kept
         try:

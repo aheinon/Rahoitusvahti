@@ -189,6 +189,10 @@ export async function createFirebaseStore(config) {
     async saveOrgInfo(key, patch) {
       await F.setDoc(F.doc(db, "orgInfo", key), { ...patch, editedBy: store.user.email, editedAt: new Date().toISOString() }, { merge: true });
     },
+    /** Marks two names as the same organisation (orgInfo/{key}.sameAs = target key; "" undoes it). */
+    async saveOrgMerge(key, sameAs) {
+      await F.setDoc(F.doc(db, "orgInfo", key), { sameAs, mergedBy: store.user.email, mergedAt: new Date().toISOString() }, { merge: true });
+    },
     async loadRadar(callId) {
       const s = await F.getDoc(F.doc(db, "radar", encodeId(callId)));
       return s.exists() ? s.data().items || [] : [];
@@ -395,6 +399,7 @@ export async function createDemoStore() {
     async savePortfolio({ projectChunks, orgChunks, meta }) { st.portfolio = { projects: projectChunks.flat(), orgs: orgChunks.flat(), meta: { ...meta, importedBy: store.user.email, importedAt: new Date().toISOString() } }; save(); },
     async loadOrgInfo() { return structuredClone(st.orgInfo); },
     async saveOrgInfo(key, patch) { st.orgInfo[key] = { ...(st.orgInfo[key] || {}), ...patch }; save(); },
+    async saveOrgMerge(key, sameAs) { st.orgInfo[key] = { ...(st.orgInfo[key] || {}), sameAs, mergedBy: store.user.email, mergedAt: new Date().toISOString() }; save(); },
     watchNetProjects(cb) { return watch(listeners.netProjects, cb, st.netProjects); },
     async saveNetProject(p) {
       const id = p.id || "np" + Date.now();
