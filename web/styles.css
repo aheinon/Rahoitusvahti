@@ -143,6 +143,8 @@ select.sel { border: 1px solid var(--line); background: var(--surface); padding:
 }
 .btn.ghost { background: transparent; color: var(--ink); border-color: var(--line); }
 .btn.ghost:hover { background: var(--hover); }
+.btn.ai { background: var(--sun); color: #16232B; border-color: var(--sun); font-weight: 650; }
+.btn.ai:hover { background: color-mix(in srgb, var(--sun) 85%, #000); border-color: color-mix(in srgb, var(--sun) 85%, #000); }
 .btn.danger { background: transparent; color: var(--urgent); border-color: var(--line); }
 .btn:disabled { opacity: .5; cursor: default; }
 
@@ -476,7 +478,20 @@ button.tag.new:hover { filter: brightness(.94); }
 .ib-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .ib-status, .ib-kind { font-size: 12px; font-weight: 650; text-transform: uppercase; letter-spacing: .03em; color: var(--ink-2); }
 .ib-status.st-developing { color: var(--soon); }
-.ib-status.st-ready { color: var(--src-bf); }
+.ib-status.st-submitted { color: var(--src-eu); }
+.ib-status.st-funded { color: var(--src-bf); }
+.ib-target { border-left: 3px solid var(--sun); padding: 4px 0 4px 10px; display: grid; gap: 2px; font-size: 13.5px; }
+.ib-target .lbl, .ib-agg dt { font-size: 12px; font-weight: 650; text-transform: uppercase; letter-spacing: .03em; color: var(--ink-3); }
+.ib-target .linkbtn { text-align: left; font-weight: 600; }
+.ib-target p { margin: 0; }
+.ib-fit b { font-size: 15px; }
+.ib-agg { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; margin: 0; font-size: 13px; }
+.ib-agg dd { margin: 0; }
+.ib-agg dt { align-self: baseline; }
+.ib-history { font-size: 13px; }
+.ib-history summary { cursor: pointer; color: var(--ink-2); }
+.ib-calls > span { display: block; }
+.ie-status { margin: 2px 0 6px; }
 .ib-status.st-parked { color: var(--ink-3); }
 .piece-card { border-left: 4px solid var(--ink-3); }
 .piece-card.kind-site { border-left-color: var(--src-maaseutu); }

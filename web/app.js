@@ -383,7 +383,7 @@ function renderListView(v) {
         <span class="spacer"></span>
         <label class="check inline"><input type="checkbox" id="showsum" ${S.showSummaries ? "checked" : ""}>Show summaries</label>
         <button class="btn ghost" id="ics" title="Download the deadlines of your favourites as a calendar file">Favourites to calendar</button>
-        ${isMember() ? `<button class="btn ghost" id="go-ideas" title="Describe an idea and Claude suggests matching calls">Find calls for an idea →</button><button class="btn" id="add-call">Add a call</button>` : ""}
+        ${isMember() ? `<button class="btn ai" id="go-ideas" title="Describe an idea and Claude suggests matching calls">✦ Find calls for an idea</button><button class="btn" id="add-call">Add a call</button>` : ""}
       </div>
       <div class="sortbar" role="group" aria-label="Sort the list">
         <span>Sort by</span>
@@ -605,7 +605,7 @@ function ideaPanelHtml() {
         <label class="sr" for="idea-name">Idea name</label>
         <input id="idea-name" maxlength="120" placeholder="Idea name, optional (e.g. Housing company PV + storage)" value="${esc(I.name)}" list="idea-names">
         <datalist id="idea-names">${allIdeas().map((t) => `<option value="${esc(t)}">`).join("")}</datalist>
-        <button class="btn" type="submit" ${I.status === "loading" ? "disabled" : ""}>Find matching calls</button>
+        <button class="btn ai" type="submit" ${I.status === "loading" ? "disabled" : ""}>✦ Find matching calls</button>
       </div>
     </form>${results}` : ""}
   </section>`;
@@ -806,7 +806,8 @@ function developHtml(c, n) {
   }
   const D = S.develop[c.id] || {};
   const desc = D.draft ?? S.ideaDocs[n.idea]?.description ?? "";
-  const r = D.result;
+  const saved = n.develop?.idea === n.idea ? n.develop : null;
+  const r = D.result || saved?.result;
   const block = (title, items, ordered) => items?.length ? `<h4>${title}</h4><${ordered ? "ol" : "ul"}>${items.map((x) => `<li>${esc(x)}</li>`).join("")}</${ordered ? "ol" : "ul"}>` : "";
   return `<section class="develop" aria-labelledby="dev-h">
     <h3 id="dev-h">Develop “${esc(n.idea)}” for this call</h3>
@@ -819,6 +820,7 @@ function developHtml(c, n) {
     ${D.status === "error" ? `<div class="idea-status err" role="alert">${esc(D.error)}</div>` : ""}
     ${r ? `<div class="dev-result">
       <div class="dev-head"><div class="fit"><b>${r.fit}</b><span>fit</span></div><p>${esc(r.verdict)}</p></div>
+      ${!D.result && saved ? `<p class="hint">Analysis from ${esc(fmtDate(saved.at.slice(0, 10)))}${saved.by ? " by " + esc(personName(saved.by).split(" ")[0]) : ""}. Run it again after changing the idea.</p>` : ""}
       ${block("What already fits", r.matches)}${block("Gaps to close", r.gaps)}${block("Partners and roles needed", r.consortium)}${block("Risks", r.risks)}${block("Next steps", r.next_steps, true)}
       ${r.hadCallText === false ? `<p class="hint">Based on the call summary only; the full call text is saved on the next nightly run.</p>` : ""}
       <button class="btn ghost small" id="dev-post">Post to comments</button>
@@ -845,8 +847,10 @@ async function runDevelop(c) {
     const call = [`${c.title}`, `Funder: ${c.funder}${c.programme && c.programme !== c.funder ? " / " + c.programme : ""}`, c.call_id && `Identifier: ${c.call_id}`,
       c.action_type && `Type of action: ${c.action_type}`, `Opens: ${c.opens || "-"}; deadline(s): ${dl}${c.deadline_time ? " " + c.deadline_time : ""}`,
       c.region && `Region / countries: ${c.region}`, `Summary: ${c.aiSummary || c.summary || "-"}`].filter(Boolean).join("\n");
-    D.result = await S.store.developIdea({ callId: c.id, ideaName: n.idea, idea: desc, call, callText: c.summary || "" });
-    D.status = "done";
+    const { usage, ...result } = await S.store.developIdea({ callId: c.id, ideaName: n.idea, idea: desc, call, callText: c.summary || "" });
+    D.result = result; D.status = "done";
+    // saved with the call so the team sees it later, here and on the idea's card
+    S.store.saveNote(c.id, { develop: { idea: n.idea, at: new Date().toISOString(), by: S.store.user?.email || "", result } }).catch(() => {});
   } catch (e) {
     D.status = "error";
     D.error = IDEA_ERRORS[e?.code] || e?.message || "The analysis failed. Try again.";
@@ -1268,7 +1272,7 @@ function renderPartnersPage(v) {
     <div class="net-main">
       <div class="net-left">
         ${NV.mode === "map" ? `<div id="net-map" class="net-map" role="region" aria-label="Map of partner organisations"></div>
-          <div class="net-legend"><span><i class="lg-close"></i>Close partner</span><span><i class="lg-nerc"></i>${REL.nerc}</span><span><i class="lg-tuas"></i>${REL.tuas}</span><span><i class="lg-pot"></i>${REL.potential}</span><span>Circle size = joint projects</span></div>`
+          <div class="net-legend"><span><i class="lg-close"></i>Close partner</span><span><i class="lg-nerc"></i>${REL.nerc}</span><span><i class="lg-tuas"></i>${REL.tuas}</span><span><i class="lg-pot"></i>${REL.potential}</span><span>Size: 1 · 2–4 · 5+ joint projects</span></div>`
           : `<div class="net-table"><table class="t"><thead><tr>
               <th><button class="linkbtn" data-sort="name">Organisation</button></th><th><button class="linkbtn" data-sort="country">Country</button></th><th>Type</th><th><button class="linkbtn" data-sort="projects">Projects together</button></th></tr></thead><tbody>
               ${[...shown].sort(sorter).map((o) => `<tr class="click" data-org="${esc(o.key)}" tabindex="0"><td><span class="reldot rel-${o.rel}" title="${REL[o.rel]}"></span>${isMember() ? `<button type="button" class="starbtn ${o.close ? "on" : ""}" data-star="${esc(o.key)}" aria-pressed="${!!o.close}" title="${o.close ? "Remove from close partners" : "Add to close partners"}" aria-label="${o.close ? "Remove " + esc(o.label) + " from close partners" : "Add " + esc(o.label) + " to close partners"}">${o.close ? "★" : "☆"}</button>` : o.close ? `<span class="closestar" title="Close partner">★</span>` : ""}<b>${esc(o.label)}</b>${NV.desc && o.info?.description ? `<div class="hint row-desc">${esc(o.info.description)}</div>` : o.doc?.contact ? `<div class="hint">${esc(o.doc.contact)}</div>` : o.city ? `<div class="hint">${esc(o.city)}</div>` : ""}</td>
@@ -1594,7 +1598,8 @@ async function drawNetworkMap(el, orgs, project) {
   for (const o of orgs) {
     if (!o.xy) continue;
     const st = o.close ? { ...style.nerc, color: col("--ink"), fillColor: col("--sun"), fillOpacity: 1 } : o.rel === "nerc" ? { ...style.nerc, weight: 1.5, fillOpacity: 0.55 } : style[o.rel];
-    const m = L.circleMarker(o.xy, { radius: (o.close ? 7 : 4) + Math.sqrt(o.count || 0.5) * 2.5, ...st }).addTo(map);
+    const size = (o.count || 0) >= 5 ? 9 : (o.count || 0) >= 2 ? 6 : 4;          // three sizes: 1, 2-4, 5+ joint projects
+    const m = L.circleMarker(o.xy, { radius: size + (o.close ? 1 : 0), ...st, weight: Math.min(st.weight, o.close ? 2.5 : 2) }).addTo(map);
     if (o.close) m.bringToFront();
     m.bindTooltip(esc(o.label));
     m.on("click", () => openOrg(o.key));
@@ -1694,7 +1699,52 @@ function radarHtml(c) {
   </section>`;
 }
 
-const IDEA_STATUS = [["raw", "Raw idea"], ["developing", "Developing"], ["ready", "Ready to apply"], ["parked", "Parked"]];
+// An idea's status follows its linked calls' stages; only "Parked" is set by hand.
+const IDEA_STATUS = [["developing", "Developing"], ["submitted", "Submitted"], ["raw", "Raw idea"], ["funded", "Funded"], ["parked", "Parked"]];
+const STAGE_RANK = { submitted: 4, preparing: 3, watching: 2, "": 1 };
+
+/** Everything the idea's linked calls know: target call, other calls, history, partners, people, tags, analyses. */
+function ideaState(name) {
+  const doc = S.ideaDocs[name] || {};
+  const links = Object.entries(S.notes).filter(([, n]) => n.idea === name).map(([id, n]) => ({ c: S.byId.get(id), n, id })).filter((x) => x.c);
+  const stage = (x) => x.n.stage || "";
+  const finished = (x) => ["rejected", "skip", "funded"].includes(stage(x)) || (isClosed(x.c) && !["submitted"].includes(stage(x)));
+  const active = links.filter((x) => !finished(x))
+    .sort((a, b) => (STAGE_RANK[stage(b)] || 0) - (STAGE_RANK[stage(a)] || 0) || (nextDeadline(a.c) || "9999").localeCompare(nextDeadline(b.c) || "9999"));
+  const funded = links.filter((x) => stage(x) === "funded");
+  const history = links.filter((x) => finished(x) && stage(x) !== "funded");
+  const status = doc.parked || doc.status === "parked" ? "parked" : funded.length ? "funded"
+    : active.some((x) => stage(x) === "submitted") ? "submitted" : active.length || history.length ? "developing" : "raw";
+  const target = funded[0] || active[0] || null;
+  const agg = (key) => { const m = new Map(); for (const x of links) for (const v of x.n[key] || []) m.set(v, (m.get(v) || 0) + 1); return [...m]; };
+  return { doc, links, target, others: active.filter((x) => x !== target), history, status,
+    partners: agg("partners"), people: agg("people"), tags: agg("tags"),
+    analyses: links.filter((x) => x.n.develop?.idea === name).map((x) => ({ ...x, a: x.n.develop })) };
+}
+
+function ideaTargetHtml(st, name) {
+  const t = st.target;
+  const dlOf = (c) => nextDeadline(c) ? fmtDate(nextDeadline(c)) : c.continuous ? "rolling" : "";
+  const callBtn = (x) => `<button class="linkbtn" data-open="${esc(x.id)}">${esc(x.c.title)}</button>`;
+  const partnerName = (id) => S.partners.find((p) => p.id === id)?.name;
+  const counted = (list, label) => list.map(([v, k]) => `${esc(label(v))}${st.links.length > 1 && k > 1 ? ` <span class="hint">×${k}</span>` : ""}`).join(", ");
+  const parts = st.partners.filter(([id]) => partnerName(id));
+  const a = t && st.analyses.find((x) => x.id === t.id)?.a;
+  return `${t ? `<div class="ib-target">
+      <span class="lbl">${t.n.stage === "funded" ? "Funded call" : "Target call"}</span>
+      ${callBtn(t)}
+      <p class="hint">${esc(STAGE_LABEL[t.n.stage || ""])}${dlOf(t.c) ? " · deadline " + esc(dlOf(t.c)) : ""}${t.n.commentCount ? ` · ${t.n.commentCount} comment${t.n.commentCount === 1 ? "" : "s"}` : ""}</p>
+      ${a ? `<p class="ib-fit"><b>${a.result.fit}</b> fit · ${esc(a.result.verdict)}</p>` : ""}
+    </div>` : ""}
+    ${parts.length || st.people.length || st.tags.length ? `<dl class="ib-agg">
+      ${parts.length ? `<dt>Partners</dt><dd>${counted(parts, partnerName)}</dd>` : ""}
+      ${st.people.length ? `<dt>People</dt><dd>${counted(st.people, (e) => personName(e).split(" ")[0])}</dd>` : ""}
+      ${st.tags.length ? `<dt>Tags</dt><dd>${counted(st.tags, (x) => x)}</dd>` : ""}
+    </dl>` : ""}
+    ${st.others.length ? `<div class="ib-calls"><span class="lbl">Other linked calls</span>${st.others.map((x) => `<span>${callBtn(x)} <span class="hint">${esc(STAGE_LABEL[x.n.stage || ""])}${dlOf(x.c) ? " · " + esc(dlOf(x.c)) : ""}${st.analyses.find((y) => y.id === x.id) ? " · fit " + st.analyses.find((y) => y.id === x.id).a.result.fit : ""}</span></span>`).join("")}</div>` : ""}
+    ${st.history.length ? `<details class="ib-history"><summary>History <span class="hint">${st.history.length}</span></summary>${st.history.map((x) => `<div>${callBtn(x)} <span class="hint">${esc(x.n.stage ? STAGE_LABEL[x.n.stage] : "Deadline passed")}${x.c.deadlines?.length ? " · " + esc(fmtDate([...x.c.deadlines].sort().pop())) : ""}</span></div>`).join("")}</details>` : ""}
+    ${!st.links.length ? `<p class="hint">No calls linked yet.</p>` : ""}`;
+}
 const PIECE_KINDS = [["site", "Pilot site"], ["need", "Need or challenge"], ["resource", "Resource"], ["expertise", "Expertise"], ["partner", "Partner"], ["other", "Other"]];
 const KIND_LABEL = Object.fromEntries(PIECE_KINDS);
 const SCOPES = [["", "Not decided"], ["national", "National"], ["international", "International"], ["both", "National or international"]];
@@ -1711,12 +1761,13 @@ function renderIdeas(v) {
   const fid = document.activeElement?.id;
   const keep = ["idea-text", "idea-name"].includes(fid) ? [fid, $("#" + fid).selectionStart, $("#" + fid).selectionEnd] : null;
   const ideas = allIdeas().map((name) => ({ name, ...(S.ideaDocs[name] || {}) }));
-  const callsOf = (name) => Object.entries(S.notes).filter(([, n]) => n.idea === name).map(([id]) => S.byId.get(id)).filter(Boolean);
   const ideasUsing = (pid) => ideas.filter((i) => (i.pieces || []).includes(pid)).map((i) => i.name);
   const pieces = [...S.pieces].filter((p) => !S.pieceKind || p.kind === S.pieceKind)
     .sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
   const order = Object.fromEntries(IDEA_STATUS.map(([k], i) => [k, i]));
-  ideas.sort((a, b) => (order[a.status || "raw"] - order[b.status || "raw"]) || a.name.localeCompare(b.name, "en"));
+  const states = Object.fromEntries(ideas.map((i) => [i.name, ideaState(i.name)]));
+  const dlKey = (n) => (states[n].target && nextDeadline(states[n].target.c)) || "9999";
+  ideas.sort((a, b) => (order[states[a.name].status] - order[states[b.name].status]) || dlKey(a.name).localeCompare(dlKey(b.name)) || a.name.localeCompare(b.name, "en"));
   v.innerHTML = `<div class="page ideas-page">
     <h1>Ideas</h1>
     <p>Project ideas, and the pieces they could be built from: pilot sites, companies' needs, our equipment and data, expertise and partners. Collect pieces as soon as they come up, even if there is no project yet, and ask Claude which calls they could fit. Only the team sees this page.</p>
@@ -1724,17 +1775,18 @@ function renderIdeas(v) {
     <section class="ib-block">
       <div class="ib-head"><h2>Project ideas <span>${ideas.length}</span></h2><button class="btn" id="new-idea">New idea</button></div>
       ${ideas.length ? `<div class="ib-grid">${ideas.map((i) => {
-        const calls = callsOf(i.name);
+        const st = states[i.name];
         const ps = (i.pieces || []).map((id) => S.pieces.find((p) => p.id === id)).filter(Boolean);
+        const variants = ideas.filter((x) => x.variantOf === i.name).map((x) => x.name);
         return `<article class="ib-card idea-card" data-idea="${esc(i.name)}">
-          <div class="ib-top"><span class="ib-status st-${esc(i.status || "raw")}">${STATUS_LABEL[i.status || "raw"]}</span></div>
+          <div class="ib-top"><span class="ib-status st-${esc(st.status)}">${STATUS_LABEL[st.status]}</span>${i.variantOf ? `<span class="hint">Variant of ${esc(i.variantOf)}</span>` : variants.length ? `<span class="hint">Variants: ${variants.map(esc).join(", ")}</span>` : ""}</div>
           <h3>${esc(i.name)}</h3>
           ${i.description ? `<p>${esc(i.description)}</p>` : `<p class="hint">No description yet.</p>`}
           ${fundingLine(i) ? `<p class="ib-fund"><b>Funding:</b> ${esc(fundingLine(i))}</p>` : ""}
           ${ps.length ? `<div class="chips">${ps.map((p) => `<span class="tag kind-${esc(p.kind)}" title="${esc(KIND_LABEL[p.kind] || "")}">${esc(p.title)}</span>`).join("")}</div>` : ""}
-          ${calls.length ? `<div class="ib-calls"><span class="lbl">Linked calls</span>${calls.map((c) => `<button class="linkbtn" data-open="${esc(c.id)}">${esc(c.title)}</button>`).join("")}</div>` : `<p class="hint">No calls linked yet.</p>`}
+          ${ideaTargetHtml(st, i.name)}
           ${cardSearchHtml(i)}
-          <div class="ib-actions"><button class="btn ghost small" data-find-idea="${esc(i.name)}" ${S.cardSearch[i.name]?.status === "loading" ? "disabled" : ""}>${i.search ? "Find calls again" : "Find calls"}</button><button class="btn ghost small" data-edit-idea="${esc(i.name)}">Edit</button></div>
+          <div class="ib-actions"><button class="btn ai small" data-find-idea="${esc(i.name)}" ${S.cardSearch[i.name]?.status === "loading" ? "disabled" : ""}>✦ ${i.search ? "Find calls again" : "Find calls"}</button><button class="btn ghost small" data-edit-idea="${esc(i.name)}">Edit</button></div>
         </article>`;
       }).join("")}</div>` : `<div class="empty"><b>No ideas yet</b>Add one with New idea, or give an idea a name in the idea search on the Calls page.</div>`}
     </section>
@@ -1750,7 +1802,7 @@ function renderIdeas(v) {
           ${p.contact ? `<p class="hint">Contact: ${esc(p.contact)}</p>` : ""}
           ${(p.tags || []).length ? `<div class="chips">${p.tags.map((t) => `<span class="tag">${esc(t)}</span>`).join("")}</div>` : ""}
           ${used.length ? `<p class="hint">Used in: ${used.map(esc).join(", ")}</p>` : ""}
-          <div class="ib-actions"><button class="btn ghost small" data-find-piece="${esc(p.id)}">Find calls</button><button class="btn ghost small" data-edit-piece="${esc(p.id)}">Edit</button></div>
+          <div class="ib-actions"><button class="btn ai small" data-find-piece="${esc(p.id)}">✦ Find calls</button><button class="btn ghost small" data-edit-piece="${esc(p.id)}">Edit</button></div>
         </article>`;
       }).join("")}</div>` : `<div class="empty"><b>No pieces ${S.pieceKind ? "of this type " : ""}yet</b>A piece can be a possible pilot site, a company's problem, a device or dataset we have, or a partner's expertise.</div>`}
     </section>
@@ -1815,7 +1867,8 @@ function openIdeaEditor(name) {
         ${name ? `<p class="hint">The name links the idea to its calls, so it cannot be changed here.</p>` : ""}</div>
       <div class="field"><label for="ie-desc">Description</label><textarea id="ie-desc" name="description" rows="4" maxlength="2000" placeholder="What would the project do, with whom, and what would it produce?">${esc(i.description || "")}</textarea></div>
       <div class="grid2">
-        <div class="field"><label for="ie-status">Status</label><select id="ie-status" name="status" class="sel">${IDEA_STATUS.map(([k, l]) => `<option value="${k}" ${(i.status || "raw") === k ? "selected" : ""}>${l}</option>`).join("")}</select></div>
+        <div class="field"><span class="lbl">Status</span><p class="hint ie-status">${name ? `Now: <b>${STATUS_LABEL[ideaState(name).status]}</b>. ` : ""}Follows the linked calls: a call being watched or prepared makes it Developing, then Submitted or Funded.</p>
+          <label class="check"><input type="checkbox" name="parked" ${i.parked || i.status === "parked" ? "checked" : ""}> Parked (on hold)</label></div>
         <div class="field"><label for="ie-scope">National or international</label><select id="ie-scope" name="scope" class="sel">${SCOPES.map(([k, l]) => `<option value="${k}" ${(i.scope || "") === k ? "selected" : ""}>${l}</option>`).join("")}</select></div>
       </div>
       <fieldset class="field ib-pick ib-funders"><legend class="lbl">Possible funders</legend>
@@ -1825,7 +1878,7 @@ function openIdeaEditor(name) {
       <fieldset class="field ib-pick"><legend class="lbl">Pieces it is built from</legend>
         ${S.pieces.length ? S.pieces.map((p) => `<label class="check"><input type="checkbox" name="pieces" value="${esc(p.id)}" ${(i.pieces || []).includes(p.id) ? "checked" : ""}><span class="ib-kind">${esc(KIND_LABEL[p.kind] || "")}</span>${esc(p.title)}</label>`).join("") : `<p class="hint">No pieces yet. Add them on the Ideas page.</p>`}
       </fieldset>
-      <div class="foot">${name ? `<button type="button" class="btn danger" id="ie-del">Delete</button>` : ""}<span style="flex:1"></span>
+      <div class="foot">${name ? `<button type="button" class="btn danger" id="ie-del">Delete</button><button type="button" class="btn ghost" id="ie-variant" title="For applying to another call with different content at the same time">Copy as a new variant</button>` : ""}<span style="flex:1"></span>
         <button type="button" class="btn ghost" data-close>Cancel</button><button class="btn" type="submit">Save</button></div>
     </form>`);
   $("#ideaform").onsubmit = async (e) => {
@@ -1834,10 +1887,16 @@ function openIdeaEditor(name) {
     const n = (name || fd.get("name") || "").trim();
     if (!n) return;
     if (!name && S.ideaDocs[n]) { toast("An idea with this name already exists"); return; }
-    await S.store.saveIdea(n, { description: String(fd.get("description") || "").trim(), status: fd.get("status"), pieces: fd.getAll("pieces"),
+    await S.store.saveIdea(n, { description: String(fd.get("description") || "").trim(), parked: fd.get("parked") === "on", ...(i.status === "parked" ? { status: "" } : {}), pieces: fd.getAll("pieces"),
       scope: fd.get("scope") || "", funders: fd.getAll("funders"), otherFunder: String(fd.get("otherFunder") || "").trim() });
     closeModal(); toast("Idea saved");
   };
+  $("#ie-variant") && ($("#ie-variant").onclick = async () => {
+    let k = 2, n2;
+    do n2 = `${name} (variant ${k++})`; while (S.ideaDocs[n2]);
+    await S.store.saveIdea(n2, { description: i.description || "", pieces: i.pieces || [], scope: i.scope || "", funders: i.funders || [], otherFunder: i.otherFunder || "", variantOf: name });
+    closeModal(); toast(`Created “${n2}”. Link it to the other call.`); setTimeout(() => openIdeaEditor(n2), 300);
+  });
   $("#ie-del") && ($("#ie-del").onclick = async () => {
     if (!(await askConfirm(linked ? `Delete “${name}”? ${linked} linked ${linked === 1 ? "call keeps" : "calls keep"} the idea name in their notes.` : `Delete “${name}”?`))) return;
     await S.store.deleteIdea(name); closeModal(); toast("Idea deleted");
