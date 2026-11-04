@@ -112,6 +112,34 @@ class Store:
                  for d in self.db.collection("notes").stream()}
         return {"ratings": ratings, "notes": notes}
 
+    def load_describe_input(self) -> dict:
+        """Everything describe.py needs: the imported partner register, the CORDIS network,
+        the team's project ticks and partner list, and the descriptions written so far."""
+        def items(col, prefix):
+            out = []
+            for d in self.db.collection(col).stream():
+                if d.id.startswith(prefix):
+                    out += (d.to_dict() or {}).get("items", [])
+            return out
+        meta = self.db.collection("portfolio").document("meta").get()
+        portfolio = {"projects": items("portfolio", "projects-"), "orgs": items("portfolio", "orgs-"),
+                     "meta": meta.to_dict()} if meta.exists else None
+        net = self.db.collection("network").document("projects").get()
+        network = {"projects": (net.to_dict() or {}).get("items", []) if net.exists else [], "orgs": items("network", "orgs-")}
+        return {"portfolio": portfolio, "network": network,
+                "netProjects": [{**(d.to_dict() or {}), "id": d.id} for d in self.db.collection("netProjects").stream()],
+                "partners": [d.to_dict() or {} for d in self.db.collection("partners").stream()],
+                "orgInfo": {d.id: d.to_dict() or {} for d in self.db.collection("orgInfo").stream()}}
+
+    def save_org_info(self, results: dict[str, dict]) -> None:
+        """orgInfo/{normalised name}. merge=True keeps anything the team added to the document."""
+        items = list(results.items())
+        for i in range(0, len(items), 400):
+            batch = self.db.batch()
+            for key, doc in items[i:i + 400]:
+                batch.set(self.db.collection("orgInfo").document(key.replace("/", " ")[:1400] or "_"), doc, merge=True)
+            batch.commit()
+
     def seed_profile(self, doc: dict) -> None:
         if self.dry:
             return

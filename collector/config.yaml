@@ -129,3 +129,14 @@ network:                         # network.py (weekly): partner network and cons
   organisation_id: "948193431"   # Turku UAS in CORDIS (TURUN AMMATTIKORKEAKOULU OY)
   radar_projects: 4              # similar funded projects shown per Horizon Europe call
   radar_min_score: 0.15          # 0-1, higher = only close matches
+
+describe:                        # describe.py (monthly or by hand): AI descriptions of partner organisations
+  # energy = partners of energy projects in the partner register, partners of NERC's projects,
+  #          EU partners of NERC's projects and the team's own partner list (~250-350 organisations)
+  # all    = every partner organisation (~1700, roughly $30-40 in total)
+  scope: energy
+  model: claude-haiku-5-5
+  searches_per_org: 3            # web searches Claude may make per organisation ($10 per 1000 searches)
+  max_per_run: 300               # cap per run; the next run continues where this one stopped
+  refresh_days: 365              # descriptions older than this are rewritten (team-edited ones never)
+  parallel_requests: 4

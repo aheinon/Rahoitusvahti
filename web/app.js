@@ -1,5 +1,6 @@
 import { createDemoStore, createFirebaseStore } from "./data.js";
 import { callLine, DEFAULT_PROFILE } from "./idea-prompt.js";
+import { chunk, normName, parseRegister } from "./portfolio.js";
 
 /* ================= Constants and helpers ================= */
 
@@ -1022,12 +1023,16 @@ const COUNTRY_XY = { FI: [62.5, 25.5], SE: [60.1, 15.6], NO: [60.5, 8.5], DK: [5
   AT: [47.6, 14.1], CH: [46.8, 8.2], PL: [52.1, 19.4], CZ: [49.8, 15.5], SK: [48.7, 19.7], HU: [47.2, 19.5], SI: [46.1, 14.8], HR: [45.1, 15.2],
   RO: [45.9, 24.9], BG: [42.7, 25.5], EL: [39.1, 22.0], GR: [39.1, 22.0], CY: [35.0, 33.2], MT: [35.9, 14.4], IE: [53.4, -8.0], UK: [54.0, -2.5],
   GB: [54.0, -2.5], IS: [64.9, -18.6], RS: [44.0, 20.9], TR: [39.0, 35.2], UA: [49.0, 31.4], AL: [41.1, 20.0], US: [39.8, -98.6], CA: [56.1, -106.3] };
-const normName = (s) => String(s || "").toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^A-Z0-9]+/g, " ").trim();
 
 async function ensureNetwork() {
   if (S.net || S.netLoading || !isMember()) return;
   S.netLoading = true;
-  try { S.net = await S.store.loadNetwork(); } catch (e) { S.net = { projects: [], orgs: [], error: e.message }; }
+  const [net, pf, info] = await Promise.all([
+    S.store.loadNetwork().catch((e) => ({ projects: [], orgs: [], error: e.message })),
+    S.store.loadPortfolio().catch(() => null),
+    S.store.loadOrgInfo().catch(() => ({})),
+  ]);
+  S.net = net; S.portfolio = pf; S.orgInfo = info || {};
   S.netLoading = false;
   if (S.view === "partners") refresh(); else if (S.openId) renderDrawerBody();
 }
@@ -1040,42 +1045,73 @@ const REL = { nerc: "Worked with us", tuas: "Worked with Turku UAS", potential: 
 /** Every organisation: CORDIS partners, partners of projects added by hand, and the team's partner list. */
 function networkModel() {
   const net = S.net || { projects: [], orgs: [] };
-  const nercPids = new Set(S.netProjects.filter((p) => p.kind === "cordis" && p.nerc).map((p) => p.pid));
+  const pf = S.portfolio || { projects: [], orgs: [] };
+  const docOf = (id) => S.netProjects.find((x) => x.id === id);
+  // NERC's own projects: register projects coordinated by NERC (or ticked), and EU projects ticked or with the same acronym
+  const pfNerc = new Set(pf.projects.filter((p) => docOf("pf-" + p.id)?.nerc ?? p.nerc).map((p) => p.id));
+  const nercAcr = new Set(pf.projects.filter((p) => pfNerc.has(p.id)).map((p) => normName(p.acronym)));
+  const nercPids = new Set(net.projects.filter((p) => docOf("cordis-" + p.pid)?.nerc ?? nercAcr.has(normName(p.acronym))).map((p) => p.pid));
   const closeIds = new Set(S.netProjects.filter((p) => p.kind === "cordis").flatMap((p) => p.close || []));
   const projById = Object.fromEntries(net.projects.map((p) => [p.pid, p]));
   const byName = new Map(), byId = new Map();
+  const remember = (o, ...names) => names.forEach((n) => { const k = normName(n); if (k && !byName.has(k)) byName.set(k, o); });
   const orgs = net.orgs.map((o) => {
-    const x = { ...o, key: "c:" + o.id, nercProjects: o.projects.filter((p) => nercPids.has(p)), manual: [], doc: null };
-    byName.set(normName(o.name), x); byId.set(o.id, x);
+    const x = { ...o, key: "c:" + o.id, nercProjects: o.projects.filter((p) => nercPids.has(p)), manual: [], pf: [], doc: null, aliases: [o.name] };
+    remember(x, o.name); byId.set(o.id, x);
     return x;
   });
-  const add = (key, base) => { const o = { geo: null, projects: [], coordinated: [], nercProjects: [], manual: [], doc: null, ...base, key }; orgs.push(o); byName.set(normName(o.name), o); return o; };
+  const add = (key, base) => { const o = { geo: null, projects: [], coordinated: [], nercProjects: [], manual: [], pf: [], doc: null, aliases: [base.name], ...base, key }; orgs.push(o); remember(o, o.name); return o; };
+  // candidate names: "Turun yliopisto (University of Turku)" -> itself, "Turun yliopisto", "University of Turku", + register variants
+  const pfOrg = new Map(pf.orgs.map((o) => [o.name, o]));
+  const candidates = (name) => {
+    const r = pfOrg.get(name);
+    const inner = (name.match(/\(([^)]+)\)/) || [])[1];
+    return [name, name.replace(/\s*\([^)]*\)\s*/g, " ").trim(), inner, ...(r?.variants || [])].filter(Boolean);
+  };
+  const find = (name) => { for (const c of candidates(name)) { const o = byName.get(normName(c)); if (o) return o; } return null; };
   for (const mp of S.netProjects.filter((p) => p.kind === "manual")) {
     for (const pt of mp.partners || []) {
-      const k = normName(pt.name);
-      if (!k) continue;
-      const o = byName.get(k) || add("m:" + k, { id: "", name: pt.name, country: (pt.country || "").toUpperCase(), city: pt.city || "", type: typeCode(pt.type) });
+      if (!normName(pt.name)) continue;
+      const o = find(pt.name) || add("m:" + normName(pt.name), { id: "", name: pt.name, country: (pt.country || "").toUpperCase(), city: pt.city || "", type: typeCode(pt.type) });
       o.manual.push({ id: mp.id, name: mp.name, nerc: mp.nerc !== false, programme: mp.programme, close: !!pt.close });
     }
   }
+  for (const p of pf.projects) {
+    const closeSet = new Set(docOf("pf-" + p.id)?.close || []);
+    for (const [name, role] of p.partners) {
+      const r = pfOrg.get(name);
+      let o = find(name);
+      if (!o) o = add("h:" + normName(name), { id: "", name, country: r && !r.intl ? "FI" : "", city: "", type: r?.type || "OTH" });
+      if (!o.aliases.includes(name)) { o.aliases.push(name); remember(o, ...candidates(name)); }
+      if (r && o.type === "OTH" && r.type !== "OTH") o.type = r.type;
+      o.pf.push({ id: p.id, acronym: p.acronym || p.title, title: p.title, instrument: p.instrument, start: p.start, end: p.end, stage: p.stage,
+        nerc: pfNerc.has(p.id), role, partnerName: name, close: closeSet.has(normName(name)) });
+    }
+  }
   for (const d of S.partners) {
-    const o = (d.cordisId && byId.get(d.cordisId)) || byName.get(normName(d.name))
+    const o = (d.cordisId && byId.get(d.cordisId)) || find(d.name)
       || add("p:" + d.id, { id: "", name: d.name, country: String(d.country || "").toUpperCase().slice(0, 2), city: "", type: typeCode(d.type) });
     o.doc = d;
   }
   for (const o of orgs) {
     o.label = o.doc?.name || o.name;
-    o.count = o.projects.length + o.manual.length;
-    o.nercCount = o.nercProjects.length + o.manual.filter((m) => m.nerc).length;
+    o.info = o.aliases.map((n) => S.orgInfo?.[normName(n)]).find(Boolean) || null;
+    const euAcr = new Set(o.projects.map((p) => normName(projById[p]?.acronym || "")));
+    o.pfOnly = o.pf.filter((x) => !euAcr.has(normName(x.acronym)));          // the same EU project is listed once
+    o.count = o.projects.length + o.manual.length + o.pfOnly.length;
+    o.nercCount = o.nercProjects.length + o.manual.filter((m) => m.nerc).length + o.pfOnly.filter((x) => x.nerc).length;
     o.rel = o.nercCount ? "nerc" : o.count ? "tuas" : "potential";
-    o.close = (o.id && closeIds.has(o.id)) || o.manual.some((m) => m.close) || !!o.doc?.close;
+    o.close = (o.id && closeIds.has(o.id)) || o.manual.some((m) => m.close) || o.pf.some((x) => x.close) || !!o.doc?.close;
     o.nerc = o.rel === "nerc";
+    if (!o.country && o.info?.country) o.country = String(o.info.country).toUpperCase();
+    if (!o.city && o.info?.city) o.city = o.info.city;
     const h = [...o.name].reduce((a, ch) => (a * 31 + ch.charCodeAt(0)) >>> 0, 7);   // stable small offset
-    o.xy = o.geo || (COUNTRY_XY[o.country] ? [COUNTRY_XY[o.country][0] + ((h % 100) / 100 - 0.5) * 0.8, COUNTRY_XY[o.country][1] + (((h >> 8) % 100) / 100 - 0.5) * 1.2] : null);
-    o.projectNames = [...o.projects.map((p) => projById[p]?.acronym || p), ...o.manual.map((m) => m.name)];
-    o.projectKeys = [...o.projects.map((p) => "c:" + p), ...o.manual.map((m) => "m:" + m.id)];
+    const infoGeo = Number.isFinite(o.info?.lat) && Number.isFinite(o.info?.lon) ? [o.info.lat, o.info.lon] : null;
+    o.xy = o.geo || infoGeo || (COUNTRY_XY[o.country] ? [COUNTRY_XY[o.country][0] + ((h % 100) / 100 - 0.5) * 0.8, COUNTRY_XY[o.country][1] + (((h >> 8) % 100) / 100 - 0.5) * 1.2] : null);
+    o.projectNames = [...o.projects.map((p) => projById[p]?.acronym || p), ...o.manual.map((m) => m.name), ...o.pfOnly.map((x) => x.acronym)];
+    o.projectKeys = [...o.projects.map((p) => "c:" + p), ...o.manual.map((m) => "m:" + m.id), ...o.pf.map((x) => "h:" + x.id)];
   }
-  return { orgs, projById, nercPids, net };
+  return { orgs, projById, nercPids, pfNerc, net, pf };
 }
 
 const callsOfPartner = (docId) => Object.entries(S.notes).filter(([, n]) => (n.partners || []).includes(docId)).map(([id]) => S.byId.get(id)).filter(Boolean);
@@ -1089,7 +1125,9 @@ function renderPartnersPage(v) {
   const M = networkModel();
   if ((NV.tab || "orgs") === "projects") return renderProjectsTab(v, M, tabsHtml);
   const projOpts = [...M.net.projects.map((p) => ["c:" + p.pid, `${p.acronym} (${(p.start || "").slice(0, 4)})`, M.nercPids.has(p.pid)]),
-    ...S.netProjects.filter((p) => p.kind === "manual").map((p) => ["m:" + p.id, p.name, p.nerc !== false])].sort((a, b) => b[2] - a[2] || a[1].localeCompare(b[1]));
+    ...S.netProjects.filter((p) => p.kind === "manual").map((p) => ["m:" + p.id, p.name, p.nerc !== false]),
+    ...M.pf.projects.filter((p) => p.partners.length && !M.net.projects.some((c) => normName(c.acronym) === normName(p.acronym))).map((p) => ["h:" + p.id, `${p.acronym || p.title} (${p.start || "?"})`, M.pfNerc.has(p.id)])]
+    .sort((a, b) => b[2] - a[2] || a[1].localeCompare(b[1]));
   const SHOW = [["close", "★ Close partners", (o) => o.close], ["nerc", REL.nerc, (o) => o.rel === "nerc"], ["tuas", REL.tuas, (o) => o.rel === "tuas"],
     ["potential", REL.potential, (o) => o.rel === "potential"], ["all", "All", () => true]];
   if (NV.show === "close" && !M.orgs.some((o) => o.close)) NV.show = "nerc";
@@ -1158,7 +1196,7 @@ function bindPartnerTabs(v) {
 
 function renderProjectsTab(v, M, tabsHtml) {
   v.innerHTML = `<div class="page net-page">
-    <div class="ib-head"><h1>Partners</h1><button class="btn" id="np-add">Add a project by hand</button></div>
+    <div class="ib-head"><h1>Partners</h1><button class="btn ghost" id="pf-import">Import partner register…</button><input type="file" id="pf-file" accept=".xlsx,.xls" hidden><button class="btn" id="np-add">Add a project by hand</button></div>
     ${tabsHtml}
     <p>Tick the EU projects NERC took part in: their partners become “Worked with us”. Then open a project's partners and tick the ones you actually worked closely with (★ close partners). Add other projects (Erasmus+, Interreg, ERDF, Business Finland …) by hand with their partners. Turku UAS's EU projects come from CORDIS automatically.</p>
     <div class="net-table" style="max-height:none"><table class="t"><thead><tr><th>NERC</th><th>Project</th><th>Programme</th><th>Years</th><th>Partners</th></tr></thead><tbody>
@@ -1172,8 +1210,14 @@ function renderProjectsTab(v, M, tabsHtml) {
         <td>${(() => { const cl = (S.netProjects.find((x) => x.id === "cordis-" + p.pid)?.close || []).length; return `<button class="linkbtn" data-pexp="c:${esc(p.pid)}" aria-expanded="${S.netView.exp === "c:" + p.pid}">${p.partners} partners${cl ? ` · ★ ${cl}` : ""}</button>`; })()}</td></tr>
         ${S.netView.exp === "c:" + p.pid ? closeListRow(M.orgs.filter((o) => o.projects.includes(p.pid)).map((o) => ({ key: o.id, name: o.name, country: o.country, type: o.type, close: (S.netProjects.find((x) => x.id === "cordis-" + p.pid)?.close || []).includes(o.id), coord: (o.coordinated || []).includes(p.pid) })), "c:" + p.pid) : ""}`).join("")}
     </tbody></table></div>
+    ${portfolioSectionHtml(M)}
   </div>`;
   bindPartnerTabs(v);
+  $("#pf-import").onclick = () => $("#pf-file").click();
+  $("#pf-file").onchange = (e) => e.target.files[0] && importRegister(e.target.files[0]);
+  $("#pf-q") && ($("#pf-q").oninput = (e) => { S.netView.pfq = e.target.value; clearTimeout(renderProjectsTab._t); renderProjectsTab._t = setTimeout(() => { const pos = e.target.selectionStart; refresh(); const i = $("#pf-q"); i?.focus(); i?.setSelectionRange(pos, pos); }, 250); });
+  $("#pf-all") && ($("#pf-all").onchange = (e) => { S.netView.pfAll = e.target.checked; refresh(); });
+  $$("[data-nercp]", v).forEach((c) => (c.onchange = () => S.store.saveNetProject({ id: "pf-" + c.dataset.nercp, kind: "portfolio", pid: c.dataset.nercp, nerc: c.checked })));
   $$("[data-nerc]", v).forEach((c) => (c.onchange = () => S.store.saveNetProject({ id: "cordis-" + c.dataset.nerc, kind: "cordis", pid: c.dataset.nerc, nerc: c.checked })));
   $$("[data-nercm]", v).forEach((c) => (c.onchange = () => S.store.saveNetProject({ id: c.dataset.nercm, nerc: c.checked })));
   $$("[data-npedit]", v).forEach((b) => (b.onclick = () => openNetProject(b.dataset.npedit)));
@@ -1186,12 +1230,83 @@ function renderProjectsTab(v, M, tabsHtml) {
       const set = new Set(doc.close || []);
       c.checked ? set.add(c.dataset.closeOrg) : set.delete(c.dataset.closeOrg);
       S.store.saveNetProject({ id: "cordis-" + pid, kind: "cordis", pid, close: [...set] });
+    } else if (kind === "h") {
+      const doc = S.netProjects.find((x) => x.id === "pf-" + pid) || {};
+      const set = new Set(doc.close || []);
+      c.checked ? set.add(c.dataset.closeOrg) : set.delete(c.dataset.closeOrg);
+      S.store.saveNetProject({ id: "pf-" + pid, kind: "portfolio", pid, close: [...set] });
     } else {
       const doc = S.netProjects.find((x) => x.id === pid);
       const partners = (doc.partners || []).map((x, i) => (String(i) === c.dataset.closeOrg ? { ...x, close: c.checked } : x));
       S.store.saveNetProject({ id: pid, partners });
     }
   }));
+}
+
+/** The imported partner register's projects: NERC's first, all with a search. */
+function portfolioSectionHtml(M) {
+  const NV = S.netView;
+  if (!M.pf.meta) return `<section class="ib-block"><h2>Turku UAS project portfolio</h2>
+    <p class="hint">Import the partner register made from the Hypergene portfolio (TUAS_kumppanirekisteri.xlsx) with <b>Import partner register…</b>. Its projects and partners are stored for the team only (not in the code repository), and NERC's projects are recognised by the coordinating research group.</p></section>`;
+  const q = (NV.pfq || "").trim().toLowerCase();
+  const list = M.pf.projects.filter((p) => (NV.pfAll || q || M.pfNerc.has(p.id)) && (!q || `${p.acronym} ${p.title} ${p.instrument} ${p.group}`.toLowerCase().includes(q)))
+    .sort((a, b) => M.pfNerc.has(b.id) - M.pfNerc.has(a.id) || (b.start || 0) - (a.start || 0));
+  const meta = M.pf.meta;
+  return `<section class="ib-block">
+    <h2>Turku UAS project portfolio <span>${M.pf.projects.length}</span></h2>
+    <p class="hint">From the partner register (${esc(meta.file || "")}, imported ${esc(fmtDate(String(meta.importedAt || "").slice(0, 10)))}${meta.importedBy ? " by " + esc(personName(meta.importedBy)) : ""}). NERC's projects (coordinating group “${esc(meta.nercPattern || "New Energy")}”) are ticked; untick or tick others if needed. EU projects that are also in CORDIS are listed once on the map.</p>
+    <div class="net-filters"><input id="pf-q" class="search" type="search" placeholder="Search the portfolio" value="${esc(NV.pfq || "")}">
+      <label class="check"><input type="checkbox" id="pf-all" ${NV.pfAll ? "checked" : ""}>Show all Turku UAS projects</label></div>
+    <div class="net-table" style="max-height:640px"><table class="t"><thead><tr><th>NERC</th><th>Project</th><th>Instrument</th><th>Years</th><th>Partners</th></tr></thead><tbody>
+      ${list.slice(0, 300).map((p) => {
+        const cl = (S.netProjects.find((x) => x.id === "pf-" + p.id)?.close || []).length;
+        return `<tr><td><input type="checkbox" data-nercp="${esc(p.id)}" ${M.pfNerc.has(p.id) ? "checked" : ""} aria-label="NERC took part in ${esc(p.acronym)}"></td>
+        <td><b>${esc(p.acronym || p.title)}</b>${p.role === "Coordinator" ? ` <span class="tag">coordinator</span>` : ""}<div class="hint">${esc(p.title !== p.acronym ? p.title : "")}${p.stage ? ` · ${esc(p.stage)}` : ""}</div></td>
+        <td>${esc(p.instrument)}<div class="hint">${esc(p.group)}</div></td><td>${esc(p.start || "")}${p.end && p.end !== p.start ? "–" + esc(p.end) : ""}</td>
+        <td>${p.partners.length ? `<button class="linkbtn" data-pexp="h:${esc(p.id)}" aria-expanded="${NV.exp === "h:" + p.id}">${p.partners.length} partners${cl ? ` · ★ ${cl}` : ""}</button>` : `<span class="hint">none</span>`}</td></tr>
+        ${NV.exp === "h:" + p.id ? closeListRow(p.partners.map(([name, role]) => { const o = M.orgs.find((x) => x.aliases?.includes(name)); return { key: normName(name), name, country: o?.country || "", type: o?.type || "", close: (S.netProjects.find((x) => x.id === "pf-" + p.id)?.close || []).includes(normName(name)), coord: /coordinator/i.test(role) }; }), "h:" + p.id) : ""}`;
+      }).join("")}
+    </tbody></table></div>
+    ${list.length > 300 ? `<p class="hint">Showing 300 of ${list.length}. Search to narrow down.</p>` : ""}
+  </section>`;
+}
+
+let _xlsx = null;
+function loadXlsx() {
+  if (window.XLSX) return Promise.resolve(window.XLSX);
+  _xlsx ||= new Promise((resolve, reject) => {
+    const js = document.createElement("script");
+    js.src = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
+    js.onload = () => resolve(window.XLSX); js.onerror = () => reject(new Error("the Excel reader could not load"));
+    document.head.appendChild(js);
+  });
+  return _xlsx;
+}
+
+async function importRegister(file) {
+  let XLSX, wb;
+  try {
+    XLSX = await loadXlsx();
+    wb = XLSX.read(await file.arrayBuffer(), { type: "array" });
+  } catch (e) { return toast(`The file could not be read: ${e.message}`); }
+  const run = (pattern) => parseRegister(XLSX, wb, pattern);
+  let res;
+  try { res = run(S.portfolio?.meta?.nercPattern || "New Energy"); } catch (e) { return toast(e.message); }
+  modal(`<h2>Import partner register</h2>
+    <p>${esc(file.name)}: <b>${res.summary.projects}</b> projects with partners, <b>${res.summary.orgs}</b> partner organisations, ${res.summary.links} project–partner links.</p>
+    <div class="field"><label for="pf-pat">NERC's projects are those whose coordinating research group contains</label><input id="pf-pat" value="${esc(S.portfolio?.meta?.nercPattern || "New Energy")}">
+      <p class="hint" id="pf-n">${res.summary.nerc} projects match.</p></div>
+    <p class="hint">This replaces the previously imported register. Ticks and close partners you have marked are kept. The data is stored in the team's database, visible to team members only.</p>
+    <div class="foot"><span style="flex:1"></span><button class="btn ghost" data-close>Cancel</button><button class="btn" id="pf-go">Import</button></div>`);
+  $("#pf-pat").oninput = (e) => { try { res = run(e.target.value || "New Energy"); $("#pf-n").textContent = `${res.summary.nerc} projects match.`; } catch { /* invalid pattern while typing */ } };
+  $("#pf-go").onclick = async () => {
+    $("#pf-go").disabled = true;
+    try {
+      await S.store.savePortfolio({ projectChunks: chunk(res.projects), orgChunks: chunk(res.orgs), meta: { file: file.name, nercPattern: $("#pf-pat").value || "New Energy", ...res.summary } });
+      S.portfolio = await S.store.loadPortfolio();
+      closeModal(); refresh(); toast(`Imported ${res.summary.projects} projects and ${res.summary.orgs} partners`);
+    } catch (e) { $("#pf-go").disabled = false; toast(`Import failed: ${e.message}`); }
+  };
 }
 
 /** Checklist of a project's partners for marking the close ones. */
@@ -1211,11 +1326,18 @@ function openOrg(key) {
   const d = o?.doc || {};
   const calls = d.id ? callsOfPartner(d.id) : [];
   const editable = isMember();
-  const projects = o ? [...o.projects.map((pid) => ({ pid, p: M.projById[pid], coord: (o.coordinated || []).includes(pid), ours: M.nercPids.has(pid) })), ...o.manual.map((m) => ({ manual: m }))] : [];
+  const projects = o ? [...o.projects.map((pid) => ({ pid, p: M.projById[pid], coord: (o.coordinated || []).includes(pid), ours: M.nercPids.has(pid) })), ...o.manual.map((m) => ({ manual: m })),
+    ...o.pfOnly.sort((a, b) => (b.start || 0) - (a.start || 0)).map((x) => ({ pf: x }))] : [];
+  const info = o?.info;
   modal(`<h2>${o ? esc(o.label) : "Add a potential partner"}</h2>
     ${o ? `<p class="hint org-sub"><span class="reldot rel-${o.rel}"></span>${o.close ? "★ Close partner · " : ""}${REL[o.rel]} · ${esc([o.city, o.country].filter(Boolean).join(", "))} · ${esc(ORG_TYPE[o.type] || o.type)}</p>` : ""}
     ${o && isMember() ? `<div class="org-close"><button type="button" class="btn ${o.close ? "ghost" : ""} small" id="og-close">${o.close ? "Remove from close partners" : "★ Add to close partners"}</button></div>` : ""}
-    ${projects.length ? `<div class="field"><span class="lbl">Projects together</span><ul class="org-projects">${projects.map((x) => x.manual
+    ${info?.description ? `<div class="org-desc"><p>${esc(info.description)}</p>
+      <p class="hint">${info.website ? `<a href="${esc(safeUrl(info.website))}" target="_blank" rel="noopener noreferrer">${esc(info.website.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, ""))}</a> · ` : ""}${info.editedBy ? "Edited by the team" : `Written by Claude from web sources${info.at ? " on " + esc(fmtDate(String(info.at).slice(0, 10))) : ""}; may contain errors`}${isMember() ? ` · <button class="linkbtn" id="og-desc-edit">Edit</button>` : ""}</p></div>`
+      : o && isMember() ? `<p class="hint">${info?.notFound ? "Claude could not identify this organisation from the web." : "No description yet."} Descriptions are written by Claude in a monthly run, or <button class="linkbtn" id="og-desc-edit">write one</button>.</p>` : ""}
+    ${projects.length ? `<div class="field"><span class="lbl">Projects together <span class="hint">(${projects.length})</span></span><ul class="org-projects">${projects.map((x) => x.pf
+      ? `<li><b>${esc(x.pf.acronym)}</b> <span class="hint">${esc(x.pf.instrument || "")} ${esc(x.pf.start || "")}${x.pf.end && x.pf.end !== x.pf.start ? "–" + esc(x.pf.end) : ""}${x.pf.nerc ? " · ours" : " · Turku UAS"}${x.pf.stage && !/ended|archived|implementation/i.test(x.pf.stage) ? " · " + esc(x.pf.stage.toLowerCase()) : ""}</span></li>`
+      : x.manual
       ? `<li><b>${esc(x.manual.name)}</b> <span class="hint">${esc(x.manual.programme || "")}${x.manual.nerc ? " · ours" : ""}</span></li>`
       : `<li><a href="https://cordis.europa.eu/project/id/${esc(x.pid)}" target="_blank" rel="noopener noreferrer"><b>${esc(x.p?.acronym || x.pid)}</b></a> <span class="hint">${esc(x.p?.programme || "")} ${esc((x.p?.start || "").slice(0, 4))}${x.ours ? " · ours" : " · Turku UAS"}${x.coord ? " · coordinator" : ""}</span></li>`).join("")}</ul></div>` : ""}
     ${calls.length ? `<div class="field"><span class="lbl">Linked to calls</span>${calls.map((c) => `<div><a href="#" data-open="${esc(c.id)}">${esc(c.title)}</a></div>`).join("")}</div>` : ""}
@@ -1234,6 +1356,18 @@ function openOrg(key) {
     </form>`);
   $$("[data-open]").forEach((a) => (a.onclick = (e) => { e.preventDefault(); closeModal(); S.view = "list"; renderShell(); openDrawer(a.dataset.open); }));
   if (!editable) return;
+  $("#og-desc-edit") && ($("#og-desc-edit").onclick = async () => {
+    const box = document.createElement("div");
+    box.className = "field";
+    box.innerHTML = `<label for="og-desc">Description</label><textarea id="og-desc" rows="4" maxlength="1200">${esc(info?.description || "")}</textarea>
+      <div class="dev-row"><input id="og-web" placeholder="Website (https://…)" value="${esc(info?.website || "")}"><button type="button" class="btn small" id="og-desc-save">Save description</button></div>`;
+    $("#og-desc-edit").closest("p, .org-desc").replaceWith(box);
+    $("#og-desc-save").onclick = async () => {
+      const web = $("#og-web").value.trim();
+      await S.store.saveOrgInfo(normName(o.name), { description: $("#og-desc").value.trim(), website: /^https?:\/\//i.test(web) ? web : "" });
+      S.orgInfo = await S.store.loadOrgInfo(); closeModal(); openOrg(o.key); toast("Description saved");
+    };
+  });
   $("#og-close") && ($("#og-close").onclick = async () => {
     if (!o.close) {
       if (d.id) await S.store.savePartner({ id: d.id, close: true });

@@ -579,3 +579,7 @@ tr.click:hover { background: var(--hover); }
 .org-close { margin: -4px 0 12px; }
 .ib-sugg .strengthen h3, .idea-card .strengthen h3 { font-size: 13px; margin: 0 0 4px; }
 .net-show button .n { opacity: .65; font-size: 12px; margin-left: 2px; }
+.org-desc { margin: 0 0 14px; padding: 10px 12px; border-left: 3px solid var(--src-eu); background: var(--surface); border-radius: 0 var(--radius) var(--radius) 0; }
+.org-desc p { margin: 0; font-size: 14px; line-height: 1.5; }
+.org-desc p.hint { margin-top: 6px; font-size: 12px; color: var(--ink-3); }
+.ib-head .btn + .btn, .ib-head input + .btn { margin-left: 8px; }

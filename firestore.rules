@@ -45,6 +45,16 @@ service cloud.firestore {
     match /radar/{doc} { allow read: if allowed(); allow write: if false; }   // similar funded projects (CORDIS)
     match /network/{doc} { allow read: if isMember(); allow write: if false; } // Turku UAS's EU partners (CORDIS)
 
+    // Turku UAS partner register (imported from the Hypergene portfolio in the app). Team only.
+    match /portfolio/{doc} {
+      allow read: if isMember();
+      allow write: if isMember();
+    }
+    // Descriptions of partner organisations (written by describe.py; the team can correct them)
+    match /orgInfo/{key} {
+      allow read, write: if isMember();
+    }
+
     // Which CORDIS projects are NERC's own, and projects added by hand (Erasmus+, Interreg, national ...)
     match /netProjects/{id} {
       allow read, write: if isMember();

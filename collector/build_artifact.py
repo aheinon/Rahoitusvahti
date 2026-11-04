@@ -7,6 +7,7 @@ data = json.loads(r("demo-data.json"))
 network = json.loads(r("demo-network.json"))
 strip = lambda t: re.sub(r"^export ", "", re.sub(r"^import .*?;\n", "", t, flags=re.M), flags=re.M)
 prompt_js = strip(r("idea-prompt.js"))
+portfolio_js = strip(r("portfolio.js"))
 data_js = strip(r("data.js"))
 app_js = strip(r("app.js"))
 page = f"""<title>Rahoitusvahti</title>
@@ -28,6 +29,7 @@ window.RV_DEMO_NETWORK = {json.dumps(network, ensure_ascii=False).replace("</", 
 </script>
 <script type="module">
 {prompt_js}
+{portfolio_js}
 {data_js}
 {app_js}
 </script>

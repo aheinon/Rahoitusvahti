@@ -48,7 +48,7 @@ def test_eu_parse_filters_stale_duplicates_and_excluded():
                    url="https://ec.europa.eu/info/funding-tenders/opportunities/data/topicDetails/X.json"),
         _eu_result("EDF-2026-X", "Defence thing", fp="44181033"),
         _eu_result("HORIZON-CL4-2025-03-DATA-11", "Open Internet Stack", typ="8",
-                   deadlines=("2026-11-03T00:00:00.000+0000",)),
+                   deadlines=("2027-11-03T00:00:00.000+0000",)),
     ]
     calls = eu_ft.parse_results(results, progs, {"EDF"})
     ids = [c.id for c in calls]

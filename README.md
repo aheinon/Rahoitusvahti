@@ -62,6 +62,16 @@ GitHub Actions (nightly)                 GitHub Pages (web/)
   EU projects and adds other projects (Erasmus+, Interreg, ERDF, Business Finland ...) with partners.
   In a call's details, *Potential partners* can be picked from all of these. *Close partners* (★) are
   ticked per project on the Projects tab or with *Add to close partners* on an organisation's card.
+- **Partner register**: *Projects → Import partner register…* reads Turku UAS's partner register
+  (an Excel file made from the Hypergene portfolio, sheets *Kumppanit* and *Hankkeet ja kumppanit*) in the
+  browser and stores it in Firestore for the team. It is never put in this repository. NERC's projects are
+  found by the coordinating research group (default pattern "New Energy", editable on import), and NERC's
+  EU projects in CORDIS are ticked when their acronym matches. All the university's other partners appear
+  as *worked with Turku UAS*, with the projects together on their card.
+- **Partner descriptions**: `collector/describe.py` (monthly, or by hand) has Claude search the web and
+  write 2-3 sentences on each partner (what it is, what it does, its energy/RDI expertise), its website
+  and location. The card says the text is written by Claude and may contain errors; anyone in the team can
+  edit it, and edited texts are never overwritten.
 - **Who won similar calls**: for every Horizon Europe call, the funded projects closest to it (same topic
   in earlier rounds, or most similar by text) with their consortia. Organisations you have worked with or
   have on the partner list are highlighted.
@@ -126,6 +136,12 @@ the calls, notes and comments live in Firestore, which only signed-in, allowlist
 **Actions → Update partner network → Run workflow**. After that it runs every Monday. It downloads
 the CORDIS files (~90 MB), so a run takes a few minutes. Then mark NERC's own projects on the Network tab.
 
+Partner register and descriptions (optional): import the register on **Partners → Projects**, then run
+**Actions → Describe partner organisations → Run workflow** (try `limit` 20 first). It needs the
+`ANTHROPIC_API_KEY` secret and web search allowed for your organisation in the Claude Console
+(Settings → Privacy, if your organisation has turned it off). After that it runs on the 3rd of each month
+and only describes new partners. `describe.scope` in `config.yaml` chooses who is described.
+
 ### 6. Idea search (Cloudflare Worker, free tier)
 The browser must never hold the Claude API key, so idea search goes through a small worker in `worker/`.
 For each request it reads `allowlist/{email}` from Firestore **with the user's own sign-in token**; Firestore
@@ -176,6 +192,7 @@ third-party summary of Anthropic's pricing; check the current prices in the Clau
 | Summary + relevance scoring, ongoing (100-200 new or changed calls a month) | | under $0.10 a month |
 | Idea search, one search over ~450 calls | ~45,000 in + 800 out | about $0.005 |
 | Idea search, 100 searches a month | | about $0.50 a month |
+| Partner descriptions (`scope: energy`, ~300 organisations, up to 3 web searches each at $10 per 1000) | | about $5-10 once, then cents a month |
 
 A call is scored again only when its content changes. Every EU topic gets a summary by default; set
 `ai.eu_min_keyword_score: 1` in `config.yaml` to skip EU topics with no keyword hits and save tokens.

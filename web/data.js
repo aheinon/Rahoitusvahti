@@ -160,6 +160,32 @@ export async function createFirebaseStore(config) {
       });
       return { projects, orgs, updatedAt };
     },
+    // ---- partner register (portfolio/meta + portfolio/projects-N + portfolio/orgs-N) and descriptions ----
+    async loadPortfolio() {
+      const snap = await F.getDocs(F.collection(db, "portfolio"));
+      let projects = [], orgs = [], meta = null;
+      snap.forEach((d) => {
+        const x = d.data();
+        if (d.id === "meta") meta = x; else if (d.id.startsWith("projects-")) projects = projects.concat(x.items || []); else if (d.id.startsWith("orgs-")) orgs = orgs.concat(x.items || []);
+      });
+      return meta ? { projects, orgs, meta } : null;
+    },
+    async savePortfolio({ projectChunks, orgChunks, meta }) {
+      const old = await F.getDocs(F.collection(db, "portfolio"));
+      const batch = F.writeBatch(db);
+      old.forEach((d) => batch.delete(d.ref));
+      projectChunks.forEach((items, i) => batch.set(F.doc(db, "portfolio", `projects-${i}`), { items }));
+      orgChunks.forEach((items, i) => batch.set(F.doc(db, "portfolio", `orgs-${i}`), { items }));
+      batch.set(F.doc(db, "portfolio", "meta"), { ...meta, importedBy: store.user.email, importedAt: new Date().toISOString() });
+      await batch.commit();
+    },
+    async loadOrgInfo() {
+      const snap = await F.getDocs(F.collection(db, "orgInfo"));
+      const out = {}; snap.forEach((d) => { out[d.id] = d.data(); }); return out;
+    },
+    async saveOrgInfo(key, patch) {
+      await F.setDoc(F.doc(db, "orgInfo", key), { ...patch, editedBy: store.user.email, editedAt: new Date().toISOString() }, { merge: true });
+    },
     async loadRadar(callId) {
       const s = await F.getDoc(F.doc(db, "radar", encodeId(callId)));
       return s.exists() ? s.data().items || [] : [];
@@ -236,7 +262,7 @@ const decodeId = (id) => id.replace(/∕/g, "/");
 /* ---------------- Demo (browser storage) ---------------- */
 
 export async function createDemoStore() {
-  const KEY = "rv-demo-en-v6";
+  const KEY = "rv-demo-en-v7";
   const base = window.RV_DEMO_DATA || (await (await fetch("demo-data.json")).json());
   const now = Date.now();
   const seed = {
@@ -283,6 +309,10 @@ export async function createDemoStore() {
           { id: "maaseutu:demo-varsinhyva", fit: 35, why: "Local development funding in Turku region, but rural areas only.", angle: "Only for a housing company in a rural Leader area." }],
           strengthen: ["Name the pilot housing company and when its roof renovation is due.", "Decide whether the energy community angle (shared battery) or the skills angle (students) leads the application."] }, pieces: ["pc1"], description: "A pilot where a housing company shares rooftop PV and a battery between apartments, with vocational students doing the installation and monitoring." },
     },
+    orgInfo: {
+      "FUNDACION CIRCE CENTRO DE INVESTIGACION DE RECURSOS Y CONSUM": { description: "CIRCE is a Spanish non-profit research foundation in Zaragoza working on energy efficiency, renewable energy integration, smart grids and power electronics. It runs applied R&D with industry and coordinates EU projects on grid integration. (example description)", website: "https://www.fcirce.es", city: "Zaragoza", country: "ES", sources: ["https://www.fcirce.es"], model: "example" },
+      "SOLARIGO SYSTEMS OY": { description: "Finnish company in Pirkkala developing solar inverter and power electronics solutions for PV systems. (example description)", website: "", city: "Pirkkala", country: "FI", sources: [], model: "example" },
+    },
     netProjects: [
       { id: "cordis-101123238", kind: "cordis", pid: "101123238", nerc: true, close: ["998802502", "892171760", "999951467", "953024419"] },
       { id: "cordis-101269394", kind: "cordis", pid: "101269394", nerc: true, close: ["881684411", "995129985"] },
@@ -310,6 +340,7 @@ export async function createDemoStore() {
   st.ideas ||= structuredClone(seed.ideas);
   st.pieces ||= structuredClone(seed.pieces);
   st.netProjects ||= structuredClone(seed.netProjects);
+  st.orgInfo ||= structuredClone(seed.orgInfo);
   const listeners = { netProjects: new Set(), pieces: new Set(), ideas: new Set(), ratings: new Set(), notes: new Set(), partners: new Set(), allow: new Set(), comments: new Map(), profile: new Set() };
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(st)); } catch { /* storage is optional */ } };
   const emit = (k) => {
@@ -357,6 +388,10 @@ export async function createDemoStore() {
     watchPieces(cb) { return watch(listeners.pieces, cb, st.pieces); },
     async loadNetwork() { const n = await demoNetwork(); return { projects: n.projects, orgs: n.orgs, updatedAt: n.updatedAt }; },
     async loadRadar(callId) { return (await demoNetwork()).radar[callId] || []; },
+    async loadPortfolio() { return st.portfolio || null; },
+    async savePortfolio({ projectChunks, orgChunks, meta }) { st.portfolio = { projects: projectChunks.flat(), orgs: orgChunks.flat(), meta: { ...meta, importedBy: store.user.email, importedAt: new Date().toISOString() } }; save(); },
+    async loadOrgInfo() { return structuredClone(st.orgInfo); },
+    async saveOrgInfo(key, patch) { st.orgInfo[key] = { ...(st.orgInfo[key] || {}), ...patch }; save(); },
     watchNetProjects(cb) { return watch(listeners.netProjects, cb, st.netProjects); },
     async saveNetProject(p) {
       const id = p.id || "np" + Date.now();
