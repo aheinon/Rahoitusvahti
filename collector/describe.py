@@ -100,7 +100,8 @@ def select(data: dict, scope: str = "energy") -> list[dict]:
             add(o["name"], country=o.get("country", ""), typ=o.get("type", "OTH"), projects=[acr.get(p, p) + " (Horizon)" for p in (mine or o.get("projects", []))])
     pf_projects_of = {}
     for p in pf["projects"]:
-        for name, _role in p.get("partners", []):
+        for x in p.get("partners", []):                     # Firestore: [{n, r}]; tests: [[name, role]]
+            name = x.get("n") if isinstance(x, dict) else x[0]
             pf_projects_of.setdefault(name, []).append(p)
     for o in sorted(pf["orgs"], key=lambda o: (-o.get("energy", 0), -o.get("projects", 0))):
         projs = pf_projects_of.get(o["name"], [])

@@ -162,19 +162,22 @@ export async function createFirebaseStore(config) {
     },
     // ---- partner register (portfolio/meta + portfolio/projects-N + portfolio/orgs-N) and descriptions ----
     async loadPortfolio() {
+      // Firestore does not store arrays inside arrays: partners [[name, role]] are saved as [{n, r}]
+      const fromFs = (p) => ({ ...p, partners: (p.partners || []).map((x) => (Array.isArray(x) ? x : [x.n, x.r || ""])) });
       const snap = await F.getDocs(F.collection(db, "portfolio"));
       let projects = [], orgs = [], meta = null;
       snap.forEach((d) => {
         const x = d.data();
-        if (d.id === "meta") meta = x; else if (d.id.startsWith("projects-")) projects = projects.concat(x.items || []); else if (d.id.startsWith("orgs-")) orgs = orgs.concat(x.items || []);
+        if (d.id === "meta") meta = x; else if (d.id.startsWith("projects-")) projects = projects.concat((x.items || []).map(fromFs)); else if (d.id.startsWith("orgs-")) orgs = orgs.concat(x.items || []);
       });
       return meta ? { projects, orgs, meta } : null;
     },
     async savePortfolio({ projectChunks, orgChunks, meta }) {
+      const toFs = (p) => ({ ...p, partners: (p.partners || []).map(([n, r]) => ({ n, r: r || "" })) });
       const old = await F.getDocs(F.collection(db, "portfolio"));
       const batch = F.writeBatch(db);
       old.forEach((d) => batch.delete(d.ref));
-      projectChunks.forEach((items, i) => batch.set(F.doc(db, "portfolio", `projects-${i}`), { items }));
+      projectChunks.forEach((items, i) => batch.set(F.doc(db, "portfolio", `projects-${i}`), { items: items.map(toFs) }));
       orgChunks.forEach((items, i) => batch.set(F.doc(db, "portfolio", `orgs-${i}`), { items }));
       batch.set(F.doc(db, "portfolio", "meta"), { ...meta, importedBy: store.user.email, importedAt: new Date().toISOString() });
       await batch.commit();
