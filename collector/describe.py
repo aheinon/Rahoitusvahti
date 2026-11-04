@@ -213,6 +213,7 @@ def main() -> int:
         for i, (o, r) in enumerate(zip(todo, pool.map(d.describe, todo)), 1):
             if r:
                 results[o["key"]] = r
+                log(f"  {'-' if r.get('notFound') else '+'} {o['name']}" + (f"  ({r['website']})" if r.get("website") else ""))
             if i % 25 == 0:
                 log(f"  {i}/{len(todo)} done, {d.searches} searches")
     store.save_org_info(results)

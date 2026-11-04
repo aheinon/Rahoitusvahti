@@ -593,3 +593,4 @@ tr.click:hover { background: var(--hover); }
 .dup-group { border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px; margin: 10px 0; }
 .dup-row { display: flex; gap: 8px; align-items: baseline; padding: 3px 0; cursor: pointer; }
 .dup-actions { margin-top: 8px; display: flex; gap: 8px; flex-wrap: wrap; }
+.row-desc { max-width: 60ch; white-space: normal; }

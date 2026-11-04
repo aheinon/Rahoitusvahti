@@ -1218,13 +1218,14 @@ function renderPartnersPage(v) {
   if (NV.show === "close" && !M.orgs.some((o) => o.close)) NV.show = "nerc";
   const inRel = M.orgs.filter(SHOW.find((x) => x[0] === NV.show)[2]);
   const q = NV.q.trim().toLowerCase();
-  const shown = inRel.filter((o) => (!NV.type || o.type === NV.type) && (!NV.project || o.projectKeys.includes(NV.project))
-    && (!q || `${o.label} ${o.city} ${o.country} ${o.projectNames.join(" ")} ${o.doc?.contact || ""} ${o.doc?.notes || ""}`.toLowerCase().includes(q)));
+  const described = inRel.filter((o) => o.info?.description).length;
+  const shown = inRel.filter((o) => (!NV.type || o.type === NV.type) && (!NV.project || o.projectKeys.includes(NV.project)) && (!NV.desc || o.info?.description)
+    && (!q || `${o.label} ${o.city} ${o.country} ${o.projectNames.join(" ")} ${o.doc?.contact || ""} ${o.doc?.notes || ""} ${o.info?.description || ""}`.toLowerCase().includes(q)));
   const countries = Object.entries(shown.reduce((m, o) => ((m[o.country || "?"] = (m[o.country || "?"] || 0) + 1), m), {})).sort((a, b) => b[1] - a[1]);
   const types = Object.entries(shown.reduce((m, o) => ((m[o.type] = (m[o.type] || 0) + 1), m), {})).sort((a, b) => b[1] - a[1]);
   const maxC = countries[0]?.[1] || 1;
   const updated = M.net.updatedAt ? new Date(M.net.updatedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "";
-  const sorter = { projects: (a, b) => b.close - a.close || b.nercCount - a.nercCount || b.count - a.count || a.label.localeCompare(b.label), name: (a, b) => a.label.localeCompare(b.label), country: (a, b) => a.country.localeCompare(b.country) || a.label.localeCompare(b.label) }[NV.sort];
+  const sorter = NV.desc ? (a, b) => String(b.info?.editedAt || b.info?.at || "").localeCompare(String(a.info?.editedAt || a.info?.at || "")) || a.label.localeCompare(b.label) : { projects: (a, b) => b.close - a.close || b.nercCount - a.nercCount || b.count - a.count || a.label.localeCompare(b.label), name: (a, b) => a.label.localeCompare(b.label), country: (a, b) => a.country.localeCompare(b.country) || a.label.localeCompare(b.label) }[NV.sort];
   v.innerHTML = `<div class="page net-page">
     <div class="ib-head"><h1>Partners</h1><button class="btn" id="org-add">Add a potential partner</button></div>
     ${tabsHtml}
@@ -1245,7 +1246,7 @@ function renderPartnersPage(v) {
     <div class="net-stats">
       <div><b>${shown.length}</b><span>organisations</span></div>
       <div><b>${countries.length}</b><span>countries</span></div>
-      <div class="net-types">${types.map(([t, n]) => `<button class="tag ${NV.type === t ? "on" : ""}" data-type="${t}">${n} ${ORG_TYPE_PL[t] || t}</button>`).join("")}${NV.type ? `<button class="linkbtn" data-type="${NV.type}">all types</button>` : ""}</div>
+      <div class="net-types">${types.map(([t, n]) => `<button class="tag ${NV.type === t ? "on" : ""}" data-type="${t}">${n} ${ORG_TYPE_PL[t] || t}</button>`).join("")}${NV.type ? `<button class="linkbtn" data-type="${NV.type}">all types</button>` : ""}${described ? `<button class="tag ${NV.desc ? "on" : ""}" id="net-desc" aria-pressed="${!!NV.desc}" title="Organisations with a description, newest first">With description ${described}</button>` : ""}</div>
     </div>
     ${!M.nercPids.size && !S.netProjects.some((p) => p.kind === "manual") ? `<div class="pf-note warn">No projects are marked as NERC's yet, so “Worked with us” is empty. Mark them on the <button class="linkbtn" data-ptab="projects">Projects</button> tab.</div>` : ""}
     <div class="net-main">
@@ -1254,7 +1255,7 @@ function renderPartnersPage(v) {
           <div class="net-legend"><span><i class="lg-close"></i>Close partner</span><span><i class="lg-nerc"></i>${REL.nerc}</span><span><i class="lg-tuas"></i>${REL.tuas}</span><span><i class="lg-pot"></i>${REL.potential}</span><span>Circle size = joint projects</span></div>`
           : `<div class="net-table"><table class="t"><thead><tr>
               <th><button class="linkbtn" data-sort="name">Organisation</button></th><th><button class="linkbtn" data-sort="country">Country</button></th><th>Type</th><th><button class="linkbtn" data-sort="projects">Projects together</button></th></tr></thead><tbody>
-              ${[...shown].sort(sorter).map((o) => `<tr class="click" data-org="${esc(o.key)}" tabindex="0"><td><span class="reldot rel-${o.rel}" title="${REL[o.rel]}"></span>${isMember() ? `<button type="button" class="starbtn ${o.close ? "on" : ""}" data-star="${esc(o.key)}" aria-pressed="${!!o.close}" title="${o.close ? "Remove from close partners" : "Add to close partners"}" aria-label="${o.close ? "Remove " + esc(o.label) + " from close partners" : "Add " + esc(o.label) + " to close partners"}">${o.close ? "★" : "☆"}</button>` : o.close ? `<span class="closestar" title="Close partner">★</span>` : ""}<b>${esc(o.label)}</b>${o.doc?.contact ? `<div class="hint">${esc(o.doc.contact)}</div>` : o.city ? `<div class="hint">${esc(o.city)}</div>` : ""}</td>
+              ${[...shown].sort(sorter).map((o) => `<tr class="click" data-org="${esc(o.key)}" tabindex="0"><td><span class="reldot rel-${o.rel}" title="${REL[o.rel]}"></span>${isMember() ? `<button type="button" class="starbtn ${o.close ? "on" : ""}" data-star="${esc(o.key)}" aria-pressed="${!!o.close}" title="${o.close ? "Remove from close partners" : "Add to close partners"}" aria-label="${o.close ? "Remove " + esc(o.label) + " from close partners" : "Add " + esc(o.label) + " to close partners"}">${o.close ? "★" : "☆"}</button>` : o.close ? `<span class="closestar" title="Close partner">★</span>` : ""}<b>${esc(o.label)}</b>${NV.desc && o.info?.description ? `<div class="hint row-desc">${esc(o.info.description)}</div>` : o.doc?.contact ? `<div class="hint">${esc(o.doc.contact)}</div>` : o.city ? `<div class="hint">${esc(o.city)}</div>` : ""}</td>
                 <td>${esc(o.country)}</td><td>${esc(ORG_TYPE[o.type] || o.type)}</td><td>${o.projectNames.map(esc).join(", ") || `<span class="hint">none yet</span>`}</td></tr>`).join("")}
             </tbody></table></div>`}
       </div>
@@ -1265,6 +1266,7 @@ function renderPartnersPage(v) {
   const re = () => refresh();
   $$("[data-show]", v).forEach((b) => (b.onclick = () => { NV.show = b.dataset.show; LS.set("rv-net-show", NV.show); if (NV.show !== "all") NV.project = ""; re(); }));
   $$("[data-mode]", v).forEach((b) => (b.onclick = () => { NV.mode = b.dataset.mode; LS.set("rv-net-mode", NV.mode); re(); }));
+  $("#net-desc") && ($("#net-desc").onclick = () => { NV.desc = !NV.desc; if (NV.desc) NV.mode = "list"; re(); });
   $$("[data-type]", v).forEach((b) => (b.onclick = () => { NV.type = NV.type === b.dataset.type ? "" : b.dataset.type; re(); }));
   $$("[data-sort]", v).forEach((b) => (b.onclick = () => { NV.sort = b.dataset.sort; re(); }));
   $$(".net-country", v).forEach((b) => (b.onclick = () => { NV.q = NV.q === b.dataset.q ? "" : b.dataset.q; re(); }));
